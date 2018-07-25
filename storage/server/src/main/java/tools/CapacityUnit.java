@@ -1,5 +1,5 @@
 package tools;
 
-public enum FileSizeUnit {
+public enum CapacityUnit {
 	B,KB,MB,GB
 }

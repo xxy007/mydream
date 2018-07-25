@@ -8,7 +8,7 @@ interface DataNodeInfo {
 	 */
 	int getStorageId();
 
-	String getIpAddr();
+	String getIp();
 
 	/**
 	 * 获取该存储节点数据传输端口
@@ -29,12 +29,12 @@ interface DataNodeInfo {
 	 * 
 	 * @return
 	 */
-	int getDiskCapacity();
+	long getDiskCapacity();
 
 	/**
 	 * 获取该存储节点已用磁盘容量(MB)
 	 * 
 	 * @return
 	 */
-	int getUsedDiskCapacity();
+	long getUsedDiskCapacity();
 }

@@ -9,10 +9,9 @@ public class BlocksManager {
 	 * blockID与blockInfo的映射map
 	 */
 	private XSet<Block, BlockInfo> blocks;
-	private int capacity;
 	
-	public BlocksManager(int capacity) {
-		this.capacity = capacity;
+	public BlocksManager() {
+		int capacity = LightSet.computeCapacity(2);
 		blocks = new LightSet<Block, BlockInfo>(capacity);
 	}
 	
@@ -26,7 +25,7 @@ public class BlocksManager {
 	}
 	
 	public static void main(String[] args) {
-		BlocksManager ma = new BlocksManager(100);
+		BlocksManager ma = new BlocksManager();
 		BlockInfo blockInfo1 = new BlockInfo(1, 1000, 1);
 		BlockInfo blockInfo2 = new BlockInfo(2, 1000, 2);
 		BlockInfo blockInfo3 = new BlockInfo(3, 1000, 3);

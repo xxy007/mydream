@@ -4,6 +4,7 @@ import java.lang.reflect.Method;
 import java.util.concurrent.ConcurrentHashMap;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import net.transfer.RPCInfo;
 
 
 public class InvokerHandler extends ChannelInboundHandlerAdapter {
@@ -11,7 +12,7 @@ public class InvokerHandler extends ChannelInboundHandlerAdapter {
 
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-		ClassInfo classInfo = (ClassInfo) msg;
+		RPCInfo classInfo = (RPCInfo) msg;
 		Object claszz = null;
 		if (!classMap.containsKey(classInfo.getClassName())) {
 			try {

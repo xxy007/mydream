@@ -3,7 +3,7 @@ package tools;
 import java.io.File;
 
 public class FileInfo {
-	public static long getFileSize(File file, FileSizeUnit unit) {
+	public static long getFileSize(File file, CapacityUnit unit) {
 		long fileSize = file.length();
 		long result = 0;
 		switch(unit) {
@@ -26,6 +26,6 @@ public class FileInfo {
 	}
 	public static void main(String[] args) {
 		File file = new File("C://aep-billing-portal-1.0.0-alogic.war");
-		System.out.println(getFileSize(file, FileSizeUnit.B));
+		System.out.println(getFileSize(file, CapacityUnit.B));
 	}
 }

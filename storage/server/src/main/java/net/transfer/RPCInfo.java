@@ -1,8 +1,9 @@
-package namenode.rpc;
+package net.transfer;
 
 import java.io.Serializable;
+import java.util.Arrays;
 
-public class ClassInfo implements Serializable {
+public class RPCInfo implements Serializable {
 	 
 	private static final long serialVersionUID = -8970942815543515064L;
 	
@@ -33,5 +34,10 @@ public class ClassInfo implements Serializable {
 	}
 	public void setObjects(Object[] objects) {
 		this.objects = objects;
+	}
+	@Override
+	public String toString() {
+		return "RPCInfo [className=" + className + ", methodName=" + methodName + ", types=" + Arrays.toString(types)
+				+ ", objects=" + Arrays.toString(objects) + "]";
 	}
 }
