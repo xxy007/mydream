@@ -3,11 +3,11 @@ package namenode.namespace;
 import tools.LinkedElement;
 
 public abstract class INode implements Comparable<INode>, LinkedElement {
-	private INode parent;
-	private long nodeId;
-	private long generationStamp;
-	private LinkedElement next;
-	private String name;
+	protected INode parent;
+	protected long nodeId;
+	protected long generationStamp;
+	protected LinkedElement next;
+	protected String name;
 
 	public INode(long nodeId, String name) {
 		this(null, nodeId, null, name);

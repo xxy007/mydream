@@ -1,5 +1,6 @@
 package datanode.storage;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -9,8 +10,8 @@ import org.apache.log4j.Logger;
 import configuration.StorageConf;
 
 public class DataNodeManager {
-	private Map<Integer, DataNodeStorage> datanodeMap = new ConcurrentHashMap<>();
-	private Map<Integer, Long> datanodeTime = new ConcurrentHashMap<>();
+	private Map<Integer, DataNodeStorage> dataNodeMap = new ConcurrentHashMap<>();
+	private Map<Integer, Long> dataNodeTime = new ConcurrentHashMap<>();
 	private AtomicInteger numDataNodes = new AtomicInteger(0);
 	private boolean isRun = false;
 	private int heartbeatSec;
@@ -37,14 +38,16 @@ public class DataNodeManager {
 		int storageId = numDataNodes.incrementAndGet();
 		DataNodeStorage dataNodeStorage = new DataNodeStorage(storageId, ip, dataPort, rpcPort, diskCapacity,
 				usedDiskCapacity);
-		datanodeMap.put(storageId, dataNodeStorage);
+		dataNodeMap.put(storageId, dataNodeStorage);
 		long curTime = System.currentTimeMillis();
-		datanodeTime.put(storageId, curTime);
+		dataNodeTime.put(storageId, curTime);
+		logger.info("registerDataNode dataNodeMap result is : " + dataNodeMap);
+		logger.info("registerDataNode dataNodeTime result is : " + dataNodeTime);
 		return storageId;
 	}
 
 	public void updateDataNode(int id, long diskCapacity, long usedDiskCapacity) {
-		DataNodeStorage dataNodeStorage = datanodeMap.get(id);
+		DataNodeStorage dataNodeStorage = dataNodeMap.get(id);
 		if (dataNodeStorage == null) {
 			logger.error("error");
 			// throw error
@@ -52,25 +55,38 @@ public class DataNodeManager {
 		dataNodeStorage.setDiskCapacity(diskCapacity);
 		dataNodeStorage.setUsedDiskCapacity(usedDiskCapacity);
 		long curTime = System.currentTimeMillis();
-		datanodeTime.put(id, curTime);
+		dataNodeTime.put(id, curTime);
+		logger.info("updateDataNode dataNodeMap result is : " + dataNodeMap);
+		logger.info("updateDataNode dataNodeTime result is : " + dataNodeTime);
 	}
 
+	public DataNodeStorage getDataNode(int id) {
+		return dataNodeMap.get(id);
+	}
+	
 	class CheckHeartBeat implements Runnable {
 		@Override
 		public void run() {
 			while(isRun) {
 				long curTime = System.currentTimeMillis();
-				Set<Entry<Integer, Long>> entrySet = datanodeTime.entrySet();
+				Set<Entry<Integer, Long>> entrySet = dataNodeTime.entrySet();
 				for(Entry<Integer, Long> entry : entrySet) {
 					int key = entry.getKey();
 					long time = entry.getValue();
-					if((curTime - time) > heartbeatSec) {
-						logger.info("该datanode已经死掉了");
-						datanodeMap.remove(key);
-						datanodeTime.remove(key);
+					if((curTime - time) > heartbeatSec * 1000) {
+						DataNodeStorage dataNode = dataNodeMap.get(key);
+						logger.info("该datanode : " + dataNode.getIp() + " 已经死掉了");
+						dataNodeMap.remove(key);
+						dataNodeTime.remove(key);
 					}
 				}
 			}
 		}
+	}
+	public static void main(String[] args) {
+		Map<String, String> map = new HashMap<>();
+		map.put("xxy", "1");
+		map.put("xxy", "2");
+		logger.info(map.get("xxy"));
 	}
 }

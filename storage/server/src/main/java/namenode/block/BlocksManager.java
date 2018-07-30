@@ -1,5 +1,6 @@
 package namenode.block;
 
+import org.apache.log4j.Logger;
 import tools.LightSet;
 import tools.XSet;
 
@@ -9,7 +10,7 @@ public class BlocksManager {
 	 * blockID与blockInfo的映射map
 	 */
 	private XSet<Block, BlockInfo> blocks;
-	
+	private static Logger logger = Logger.getLogger(BlocksManager.class);
 	public BlocksManager() {
 		int capacity = LightSet.computeCapacity(2);
 		blocks = new LightSet<Block, BlockInfo>(capacity);
@@ -40,7 +41,7 @@ public class BlocksManager {
 		
 		BlockInfo blockInfo6 = new BlockInfo(1, 1000, 1);
 		
-		System.out.println(ma.getBlockInfo(blockInfo6));
+		logger.info(ma.getBlockInfo(blockInfo6));
 		
 	}
 }

@@ -11,6 +11,7 @@ public class Block implements Comparable<Block>, Cloneable, LinkedElement {
 	public Block(long blockId, long numBytes) {
 		this.blockId = blockId;
 		this.numBytes = numBytes;
+		generationStamp = System.currentTimeMillis();
 	}
 
 	public Block(long blockId) {

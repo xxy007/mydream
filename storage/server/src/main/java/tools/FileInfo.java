@@ -2,7 +2,10 @@ package tools;
 
 import java.io.File;
 
+import org.apache.log4j.Logger;
+
 public class FileInfo {
+	private static Logger logger = Logger.getLogger(FileInfo.class);
 	public static long getFileSize(File file, CapacityUnit unit) {
 		long fileSize = file.length();
 		long result = 0;
@@ -26,6 +29,6 @@ public class FileInfo {
 	}
 	public static void main(String[] args) {
 		File file = new File("C://aep-billing-portal-1.0.0-alogic.war");
-		System.out.println(getFileSize(file, CapacityUnit.B));
+		logger.info(getFileSize(file, CapacityUnit.B));
 	}
 }

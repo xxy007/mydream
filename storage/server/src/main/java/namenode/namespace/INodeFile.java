@@ -40,4 +40,17 @@ public class INodeFile extends INode {
 	public boolean isFile() {
 		return true;
 	}
+
+	@Override
+	public String toString() {
+		String result = "";
+		result = " INodeDirectory [ "
+				+ " nodeId=" + nodeId
+				+ " generationStamp=" + generationStamp 
+				+ " name=" + name
+				+ " blocks=" + blocks
+				+ " parent=" + parent.getName()
+				+ " ] ";
+		return result; 
+	}
 }

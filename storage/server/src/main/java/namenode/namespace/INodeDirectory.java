@@ -43,4 +43,19 @@ public class INodeDirectory extends INode {
 	public boolean isFile() {
 		return false;
 	}
+
+	@Override
+	public String toString() {
+		String result = "";
+		result = " INodeDirectory [ "
+				+ " nodeId=" + nodeId
+				+ " generationStamp=" + generationStamp
+				+ " name=" + name
+				+ " childNode" + childNode;
+		if(super.getParent() != null) {
+			result = result + " parent=" + parent.getName();
+		}
+		result = result + " ] ";
+		return result; 
+	}
 }

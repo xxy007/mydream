@@ -70,4 +70,10 @@ public class DataNodeStorage implements DataNodeInfo {
 	public void setUsedDiskCapacity(long usedDiskCapacity) {
 		this.usedDiskCapacity = usedDiskCapacity;
 	}
+
+	@Override
+	public String toString() {
+		return "DataNodeStorage [storageId=" + storageId + ", ip=" + ip + ", dataPort=" + dataPort + ", rpcPort="
+				+ rpcPort + ", diskCapacity=" + diskCapacity + ", usedDiskCapacity=" + usedDiskCapacity + "]";
+	}
 }

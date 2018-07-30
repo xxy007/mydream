@@ -1,1 +1,9 @@
-xxy = 123456
+namenode.ip=192.168.137.130
+datanode.ip=192.168.137.131,192.168.137.132
+dataNode.storage.dir=/home/hadoop/xxytest/mydream/data
+datanode.heartbeat.second=300
+datanode.data.port=2222
+datanode.rpc.port=3333
+datanode.heartbeat.die.second=630
+namenode.fsimage.path=/home/hadoop/xxytest/mydream/fsimage
+client.rpc.port=1111

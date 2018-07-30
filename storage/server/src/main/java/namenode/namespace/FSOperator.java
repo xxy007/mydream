@@ -10,6 +10,4 @@ public interface FSOperator {
 	public boolean createDir(String dirPath) throws IOException;
 
 	public boolean createFile(String filePath) throws IOException;
-
-	public boolean createNode(String filePath, boolean isFile) throws IOException;
 }

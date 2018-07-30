@@ -3,26 +3,28 @@ package namenode.namespace;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.io.FilenameFilter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.apache.log4j.Logger;
-
 import configuration.StorageConf;
 import exception.ConfigurationException;
 import exception.FSImageLoadException;
+import namenode.block.Block;
 import namenode.block.BlockInfo;
 import namenode.block.BlocksManager;
+import tools.FileFilter;
+import tools.Sequence;
 
 public class FSImage {
 	private BlocksManager blocksManager;
 	private INodeDirectory rootDir = null;
-	private Logger logger = Logger.getLogger(FSImage.class);
 	private long readLineNum = 0;
+	private String imageDir;
+	private String srcImageFile;
 
+	private Logger logger = Logger.getLogger(FSImage.class);
 	public FSImage(BlocksManager blocksManager) {
 		super();
 		this.blocksManager = blocksManager;
@@ -30,20 +32,6 @@ public class FSImage {
 
 	public FSImage() {
 		super();
-	}
-
-	class ImageFilter implements FilenameFilter {
-		private String regex;
-
-		public ImageFilter(String regex) {
-			this.regex = regex;
-		}
-
-		public boolean accept(File dir, String name) {
-			Pattern p = Pattern.compile(regex);
-			Matcher m = p.matcher(name);
-			return m.find();
-		}
 	}
 
 	public INodeDirectory getRootDir() {
@@ -55,25 +43,31 @@ public class FSImage {
 	}
 
 	public void loadFSImage() throws IOException {
-		String imageDir = StorageConf.getVal("image.path", null);
+		imageDir = StorageConf.getVal("namenode.fsimage.path", "/home/hadoop/xxytest/mydream/fsimage");
 		if (imageDir == null) {
 			throw new ConfigurationException("读取配置项image.path失败，该配置项设置数据在节点中存放的目录，必须设置");
 		}
 		File imageFile = new File(imageDir);
-		File[] files = imageFile.listFiles(new ImageFilter("fsimage_[0-9]+$"));
+		File[] files = imageFile.listFiles(new FileFilter("fsimage_[0-9]+$"));
+		if (files == null || files.length == 0) {
+			long id = Sequence.nextVal();
+			rootDir = new INodeDirectory(id, "ROOT");
+			return;
+		}
 		if (files.length != 1) {
 			throw new FSImageLoadException("fsimage文件存在多个，读取异常");
 		}
 		File file = files[0];
+		srcImageFile = file.getPath();
 		try (FileReader fr = new FileReader(file); BufferedReader br = new BufferedReader(fr);) {
 			INodeDirectory nullNode = null;
-			loadImageToBlock(br, nullNode);
+			loadImageToNode(br, nullNode);
 		} finally {
 
 		}
 	}
 
-	public void loadImageToBlock(BufferedReader br, INodeDirectory parentDirNode) throws IOException {
+	public void loadImageToNode(BufferedReader br, INodeDirectory parentDirNode) throws IOException {
 		String line = br.readLine();
 		++readLineNum;
 		String[] info;
@@ -102,18 +96,18 @@ public class FSImage {
 			rootDir = (INodeDirectory) node;
 		}
 		if (!"".equals(childsStr) && ("0".equals(type) || "1".equals(type))) {
-			for (String child : childsStr.split(",")) {
-				loadImageToBlock(br, (INodeDirectory) node);
+			for (int i = 0; i < childsStr.split(",").length; i++) {
+				loadImageToNode(br, (INodeDirectory) node);
 			}
 		} else if ("".equals(childsStr) && "2".equals(type)) {
 			List<BlockInfo> blocks = new ArrayList<>();
 			for (String blockStr : blocksStr.split(",")) {
 				long blockId = Long.parseLong(blockStr);
-				System.out.println(String.format("node %s 的block %s", node.getId(), blockId));
-//				 Block block = new Block(blockId);
-//				 BlockInfo blockInfo = blocksManager.getBlockInfo(block);
-//				 blocks.add(blockInfo);
-				 BlockInfo blockInfo = new BlockInfo(blockId);
+				logger.info(String.format("node %s 的block %s", node.getId(), blockId));
+				Block block = new Block(blockId);
+				BlockInfo blockInfo = blocksManager.getBlockInfo(block);
+				blocks.add(blockInfo);
+				// BlockInfo blockInfo = new BlockInfo(blockId);
 				blocks.add(blockInfo);
 			}
 			INodeFile fileNode = (INodeFile) node;
@@ -125,26 +119,46 @@ public class FSImage {
 		}
 	}
 
-	public static void main(String[] args) throws IOException {
-		StorageConf.setVal("image.path", "C:\\fsimage");
-		FSImage fsImage = new FSImage();
-		fsImage.loadFSImage();
-		// String regex = "fsimage_[0-9]+$";
-		// Pattern p = Pattern.compile(regex);
-		// Matcher m = p.matcher("fsimage_165453");
-		// System.out.println(m.find());
-		// String txt = "1|2|app2|1|5,6|";
-		// String[] info = txt.split("\\|", -1);
-		// System.out.println(info[5]);
-		// System.out.println(Arrays.asList(info));
-		// System.out.println(info.length);
-		INodeDirectory rootDir = fsImage.getRootDir();
-		System.out.println(rootDir);
-		System.out.println(genRootStr(rootDir));
-		printNode(rootDir);
-	}
+//	public static void main(String[] args) throws IOException {
+//		StorageConf.setVal("image.path", "C:\\fsimage");
+//		FSImage fsImage = new FSImage();
+//		fsImage.loadFSImage();
+//		// String regex = "fsimage_[0-9]+$";
+//		// Pattern p = Pattern.compile(regex);
+//		// Matcher m = p.matcher("fsimage_165453");
+//		// System.out.println(m.find());
+//		// String txt = "1|2|app2|1|5,6|";
+//		// String[] info = txt.split("\\|", -1);
+//		// System.out.println(info[5]);
+//		// System.out.println(Arrays.asList(info));
+//		// System.out.println(info.length);
+//		INodeDirectory rootDir = fsImage.getRootDir();
+//		System.out.println(rootDir);
+//		System.out.println(genRootStr(rootDir));
+//		printNode(rootDir);
+//	}
 
-	public static void printNode(INode node) {
+	public void printNode() throws IOException {
+		if(rootDir == null) {
+			return;
+		}
+		long imageId = Sequence.nextVal();
+		String imageNextFile = imageDir + "/fsimage_" + imageId;
+		File nextFile = new File(imageNextFile);
+		if(nextFile.exists())
+			nextFile.delete();
+		nextFile.createNewFile();
+		FileWriter writer = new FileWriter(nextFile);
+		writer.write(genRootStr(rootDir));
+		writer.write("\r\n");
+		printNode(writer, rootDir);
+		writer.flush();
+		writer.close();
+		File srcImage = new File(srcImageFile);
+		srcImage.delete();
+	}
+	
+	public void printNode(FileWriter writer, INode node) throws IOException {
 		if (node.isDirectory()) {
 			INodeDirectory dirNode = (INodeDirectory) node;
 			if (dirNode.getChild().isEmpty()) {
@@ -153,15 +167,16 @@ public class FSImage {
 			List<INode> childsNode = dirNode.getChild();
 			for (INode childNode : childsNode) {
 				String nodeStr = genStr(childNode);
-				System.out.println(nodeStr);
-				printNode(childNode);
+				writer.write(nodeStr);
+				writer.write("\r\n");
+				printNode(writer, childNode);
 			}
 		} else {
 			return;
 		}
 	}
 
-	public static String genRootStr(INode node) {
+	public String genRootStr(INode node) {
 		String result;
 		String type = "0";
 		String blockIdStr = "";
@@ -180,7 +195,7 @@ public class FSImage {
 		return result;
 	}
 
-	public static String genStr(INode node) {
+	public String genStr(INode node) {
 		String result;
 		String type;
 		String childIdStr = "";

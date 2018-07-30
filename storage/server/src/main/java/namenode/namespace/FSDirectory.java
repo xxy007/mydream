@@ -3,6 +3,8 @@ package namenode.namespace;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import org.apache.log4j.Logger;
 
 import exception.PathErrorException;
@@ -11,11 +13,14 @@ import namenode.block.BlockInfo;
 import tools.Sequence;
 
 public class FSDirectory implements FSOperator{
-	private INodeDirectory rootDir; // 没有name,parent属性，只有child，相当于根目录
+	private final INodeDirectory rootDir; // 没有name,parent属性，只有child，相当于根目录
 	private Logger logger = Logger.getLogger(FSDirectory.class);
+	private final ReentrantReadWriteLock dirLock;
 
 	public FSDirectory(INodeDirectory rootDir) {
 		this.rootDir = rootDir;
+		this.dirLock = new ReentrantReadWriteLock(true);
+		logger.info("rootDir is " + rootDir);
 	}
 
 	public List<BlockInfo> getBlockInfo(String filePath) throws IOException {
@@ -25,17 +30,24 @@ public class FSDirectory implements FSOperator{
 	}
 
 	public boolean createDir(String dirPath) throws IOException {
-		return createNode(dirPath, false);
+		dirLock.writeLock().lock();
+		boolean result = createNode(dirPath, false);
+		dirLock.writeLock().unlock();
+		return result;
 	}
 
 	public boolean createFile(String filePath) throws IOException {
-		return createNode(filePath, true);
+		dirLock.writeLock().lock();
+		boolean result = createNode(filePath, true);
+		dirLock.writeLock().unlock();
+		return result;
 	}
 
-	public boolean createNode(String filePath, boolean isFile) throws IOException {
-		File file = new File(filePath);
+	private boolean createNode(String path, boolean isFile) throws IOException {
+		File file = new File(path);
 		String parent = file.getParent();
 		INodeDirectory parentNode = (INodeDirectory) findNode(parent, false);
+		logger.info("parentNode is " + parentNode);
 		String name = file.getName();
 		long nodeId = Sequence.nextVal();
 		INode node;
@@ -45,6 +57,7 @@ public class FSDirectory implements FSOperator{
 			node = new INodeDirectory(parentNode, nodeId, name);
 		}
 		parentNode.addChild(node);
+		logger.info("after add child parentNode is " + parentNode);
 		return true;
 	}
 
@@ -61,18 +74,29 @@ public class FSDirectory implements FSOperator{
 		INodeDirectory curNode = rootDir;
 		while (curNode != null && curNode.isDirectory() && count < componentNum) {
 			List<INode> child = curNode.getChild();
+			boolean isFindNode = false;
 			for (INode node : child) {
+				logger.info("node is " + node.getName());
+				logger.info("components[" + count+ "] is " +  components[count]);
+				logger.info("componentNum is " +  componentNum);
+				logger.info("isFile is " +  isFile);
 				if (components[count].equals(node.getName()) && count != componentNum - 1) {
 					curNode = (INodeDirectory) node;
 					count++;
-					continue;
+					logger.info("curNode is " +  curNode.toString());
+					isFindNode = true;
+					break;
 				} else if (components[count].equals(node.getName()) && count == componentNum - 1) {
+					logger.info("2: isFile is " + isFile);
+					logger.info("node.isDirectory() " + node.isDirectory());
+					logger.info("2: components[count] is " +  components[count]);
 					if ((isFile && node.isFile()) || (!isFile && node.isDirectory())) {
 						return node;
 					}
 				}
 			}
-			break;
+			if(!isFindNode)
+				break;
 		}
 		throw new PathNotFoundException("this path : " + "is not found");
 	}
@@ -92,36 +116,12 @@ public class FSDirectory implements FSOperator{
 		int componentNum = 0;
 		for (int i = 0; i < length; i++) {
 			if (!"".equals(components[i])) {
-				components[componentNum] = File.separator + components[i];
+				components[componentNum] = components[i];
 				++componentNum;
 			}
 		}
 		String[] result = new String[componentNum];
 		System.arraycopy(components, 0, result, 0, componentNum);
 		return result;
-	}
-
-	public static void main(String[] args) throws IOException {
-		// String a = "/aaa/bbb/bbb/ccc///ddd";
-		// File file = new File(a);
-		// System.out.println(file.getParent());
-		// System.out.println(file.getName());
-		// String[] components = a.split("/");
-		// System.out.println(Arrays.asList(components));
-		// System.out.println(components.length);
-		// String[] coms = getValidPath("///");
-
-		// String path = File.separator + File.separator + File.separator + "aaa";
-		// File file = new File(path);
-		// path = file.getPath();
-		// System.out.println(path);
-		// String[] coms = path.split("\\" + File.separator);
-		//
-		// System.out.println(coms == null);
-		// System.out.println(coms.length);
-		// System.out.println(Arrays.asList(coms));
-
-		String path = "/aaa";
-		System.out.println(path.charAt(0) == '/');
 	}
 }
