@@ -11,20 +11,6 @@ interface DataNodeInfo {
 	String getIp();
 
 	/**
-	 * 获取该存储节点数据传输端口
-	 * 
-	 * @return
-	 */
-	int getDataPort();
-
-	/**
-	 * 获取该存储节点RPC调用端口
-	 * 
-	 * @return
-	 */
-	int getRpcPort();
-
-	/**
 	 * 获取该存储节点总的磁盘容量(MB)
 	 * 
 	 * @return

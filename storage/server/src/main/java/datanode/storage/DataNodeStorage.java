@@ -7,18 +7,15 @@ public class DataNodeStorage implements DataNodeInfo {
 	private int storageId;
 
 	private String ip;
-	private int dataPort;
 	private int rpcPort;
 	private long diskCapacity;
 	private long usedDiskCapacity;
 
-	public DataNodeStorage(int storageId, String ip, int dataPort, int rpcPort, long diskCapacity,
-			long usedDiskCapacity) {
+	public DataNodeStorage(int storageId, int rpcPort, String ip, long diskCapacity, long usedDiskCapacity) {
 		super();
 		this.storageId = storageId;
-		this.ip = ip;
-		this.dataPort = dataPort;
 		this.rpcPort = rpcPort;
+		this.ip = ip;
 		this.diskCapacity = diskCapacity;
 		this.usedDiskCapacity = usedDiskCapacity;
 	}
@@ -39,22 +36,6 @@ public class DataNodeStorage implements DataNodeInfo {
 		this.ip = ip;
 	}
 
-	public int getDataPort() {
-		return dataPort;
-	}
-
-	public void setDataPort(int dataPort) {
-		this.dataPort = dataPort;
-	}
-
-	public int getRpcPort() {
-		return rpcPort;
-	}
-
-	public void setRpcPort(int rpcPort) {
-		this.rpcPort = rpcPort;
-	}
-
 	public long getDiskCapacity() {
 		return diskCapacity;
 	}
@@ -71,9 +52,17 @@ public class DataNodeStorage implements DataNodeInfo {
 		this.usedDiskCapacity = usedDiskCapacity;
 	}
 
+	public int getRpcPort() {
+		return rpcPort;
+	}
+
+	public void setRpcPort(int rpcPort) {
+		this.rpcPort = rpcPort;
+	}
+
 	@Override
 	public String toString() {
-		return "DataNodeStorage [storageId=" + storageId + ", ip=" + ip + ", dataPort=" + dataPort + ", rpcPort="
-				+ rpcPort + ", diskCapacity=" + diskCapacity + ", usedDiskCapacity=" + usedDiskCapacity + "]";
+		return "DataNodeStorage [storageId=" + storageId + ", ip=" + ip + ", rpcPort=" + rpcPort + ", diskCapacity="
+				+ diskCapacity + ", usedDiskCapacity=" + usedDiskCapacity + "]";
 	}
 }

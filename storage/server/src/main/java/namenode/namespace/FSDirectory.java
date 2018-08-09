@@ -7,6 +7,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.log4j.Logger;
 
+import datanode.storage.DataNodeManager;
+import datanode.storage.DataNodeManager.PortInfo;
+import datanode.storage.DataNodeStorage;
 import exception.PathErrorException;
 import exception.PathNotFoundException;
 import namenode.block.BlockInfo;
@@ -16,6 +19,7 @@ public class FSDirectory implements FSOperator{
 	private final INodeDirectory rootDir; // 没有name,parent属性，只有child，相当于根目录
 	private Logger logger = Logger.getLogger(FSDirectory.class);
 	private final ReentrantReadWriteLock dirLock;
+	private DataNodeManager dataNodeManager;
 
 	public FSDirectory(INodeDirectory rootDir) {
 		this.rootDir = rootDir;
@@ -23,29 +27,57 @@ public class FSDirectory implements FSOperator{
 		logger.info("rootDir is " + rootDir);
 	}
 
-	public List<BlockInfo> getBlockInfo(String filePath) throws IOException {
-		INode node = findNode(filePath, true);
+	public List<BlockInfo> getBlockInfo(String filePath) {
+		INode node = null;
+		try {
+			node = findNode(filePath, true);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 		INodeFile nodeFile = (INodeFile) node;
 		return nodeFile.getBlocks();
 	}
-
-	public boolean createDir(String dirPath) throws IOException {
+	
+	public void addBlockInfo(String filePath, BlockInfo blockInfo){
+		INodeFile fileNode;
+		try {
+			fileNode = (INodeFile) findNode(filePath, true);
+			fileNode.addBlock(blockInfo);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public boolean createDir(String dirPath) {
 		dirLock.writeLock().lock();
-		boolean result = createNode(dirPath, false);
-		dirLock.writeLock().unlock();
+		boolean result = false;
+		try {
+			result = createNode(dirPath, false);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} finally {
+			dirLock.writeLock().unlock();
+		}
 		return result;
 	}
 
-	public boolean createFile(String filePath) throws IOException {
+	public boolean createFile(String filePath) {
 		dirLock.writeLock().lock();
-		boolean result = createNode(filePath, true);
-		dirLock.writeLock().unlock();
+		boolean result = false;
+		try {
+			result = createNode(filePath, true);
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			dirLock.writeLock().unlock();
+		}
 		return result;
 	}
 
 	private boolean createNode(String path, boolean isFile) throws IOException {
 		File file = new File(path);
-		String parent = file.getParent();
+		String parent = getParentPath(path);
 		INodeDirectory parentNode = (INodeDirectory) findNode(parent, false);
 		logger.info("parentNode is " + parentNode);
 		String name = file.getName();
@@ -123,5 +155,21 @@ public class FSDirectory implements FSOperator{
 		String[] result = new String[componentNum];
 		System.arraycopy(components, 0, result, 0, componentNum);
 		return result;
+	}
+	private String getParentPath(String path) {
+		File file = new File(path);
+		return file.getParent();
+	}
+	
+	public List<DataNodeStorage> getDataNode() {
+		return dataNodeManager.getBlockDataNode();
+	}
+	
+	public PortInfo getPortInfo() {
+		return dataNodeManager.getPortInfo();
+	}
+	
+	public boolean recoverPortInfo(PortInfo portInfo) {
+		return dataNodeManager.recoverPortInfo(portInfo);
 	}
 }

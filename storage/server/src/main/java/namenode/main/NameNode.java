@@ -17,7 +17,7 @@ import namenode.block.BlocksManager;
 import namenode.namespace.FSDirectory;
 import namenode.namespace.FSImage;
 import namenode.namespace.INodeDirectory;
-import namenode.rpc.RpcServer;
+import rpc.RpcServer;
 
 public class NameNode {
 	private BlocksManager blocksManager;
@@ -111,11 +111,11 @@ public class NameNode {
 		nameNode.join();
 	}
 
-	public int registerDataNode(String ip, int dataPort, int rpcPort, long diskCapacity, long usedDiskCapacity) {
+	public int registerDataNode(String ip, int rpcPort, long diskCapacity, long usedDiskCapacity) {
 		ipRegisterSet.remove(ip);
 		logger.info("datanode : " + ip + " has register end");
 		logger.info("ipRegisterSet is : " + ipRegisterSet);
-		return dataNodeManager.registerDataNode(ip, dataPort, rpcPort, diskCapacity, usedDiskCapacity);
+		return dataNodeManager.registerDataNode(ip, rpcPort, diskCapacity, usedDiskCapacity);
 	}
 
 	public void updateDataNode(int storageId, long diskCapacity, long usedDiskCapacity) {

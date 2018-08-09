@@ -1,13 +1,23 @@
 package namenode.namespace;
 
-import java.io.IOException;
 import java.util.List;
+
+import datanode.storage.DataNodeManager.PortInfo;
+import datanode.storage.DataNodeStorage;
 import namenode.block.BlockInfo;
 
 public interface FSOperator {
-	public List<BlockInfo> getBlockInfo(String filePath) throws IOException;
+	List<BlockInfo> getBlockInfo(String filePath);
 
-	public boolean createDir(String dirPath) throws IOException;
+	boolean createDir(String dirPath);
 
-	public boolean createFile(String filePath) throws IOException;
+	boolean createFile(String filePath);
+	
+	void addBlockInfo(String filePath, BlockInfo blockInfo);
+	
+	List<DataNodeStorage> getDataNode();
+	
+	PortInfo getPortInfo();
+	
+	boolean recoverPortInfo(PortInfo portInfo);
 }

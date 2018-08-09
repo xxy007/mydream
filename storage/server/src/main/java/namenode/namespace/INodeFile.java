@@ -31,6 +31,10 @@ public class INodeFile extends INode {
 		this.blocks = blocks;
 	}
 
+	public void addBlock(BlockInfo block) {
+		this.blocks.add(block);
+	}
+	
 	@Override
 	public boolean isDirectory() {
 		return false;

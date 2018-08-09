@@ -1,8 +1,13 @@
 package datanode.storage;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -12,6 +17,15 @@ import configuration.StorageConf;
 public class DataNodeManager {
 	private Map<Integer, DataNodeStorage> dataNodeMap = new ConcurrentHashMap<>();
 	private Map<Integer, Long> dataNodeTime = new ConcurrentHashMap<>();
+	private LinkedList<PortInfo> portInfoList = new LinkedList<>();
+	private PriorityQueue<DataNodeStorage> dataNodeQueue = new PriorityQueue<>(new Comparator<DataNodeStorage>() {
+		@Override
+		public int compare(DataNodeStorage o1, DataNodeStorage o2) {
+			long freeCapacity1 = o1.getDiskCapacity() - o1.getUsedDiskCapacity();
+			long freeCapacity2 = o2.getDiskCapacity() - o2.getUsedDiskCapacity();
+			return (freeCapacity1 < freeCapacity2) ? -1 : ((freeCapacity1 == freeCapacity2) ? 0 : 1);
+		}
+	});
 	private AtomicInteger numDataNodes = new AtomicInteger(0);
 	private boolean isRun = false;
 	private int heartbeatSec;
@@ -19,6 +33,10 @@ public class DataNodeManager {
 	private static Logger logger = Logger.getLogger(DataNodeManager.class);
 
 	public DataNodeManager(boolean isRun) {
+		for (int i = 0; i < 100; i++) {
+			PortInfo portInfo = new PortInfo(40000 + i*2, 40000 + i*2 + 1);
+			portInfoList.add(portInfo);
+		}
 		this.isRun = isRun;
 		heartbeatSec = Integer.parseInt(StorageConf.getVal("datanode.heartbeat.die.second", "630"));
 		Thread t = new Thread(new CheckHeartBeat());
@@ -34,11 +52,11 @@ public class DataNodeManager {
 		this.isRun = isRun;
 	}
 
-	public int registerDataNode(String ip, int dataPort, int rpcPort, long diskCapacity, long usedDiskCapacity) {
+	public int registerDataNode(String ip, int rpcPort, long diskCapacity, long usedDiskCapacity) {
 		int storageId = numDataNodes.incrementAndGet();
-		DataNodeStorage dataNodeStorage = new DataNodeStorage(storageId, ip, dataPort, rpcPort, diskCapacity,
-				usedDiskCapacity);
+		DataNodeStorage dataNodeStorage = new DataNodeStorage(storageId, rpcPort, ip, diskCapacity, usedDiskCapacity);
 		dataNodeMap.put(storageId, dataNodeStorage);
+		dataNodeQueue.add(dataNodeStorage);
 		long curTime = System.currentTimeMillis();
 		dataNodeTime.put(storageId, curTime);
 		logger.info("registerDataNode dataNodeMap result is : " + dataNodeMap);
@@ -63,17 +81,17 @@ public class DataNodeManager {
 	public DataNodeStorage getDataNode(int id) {
 		return dataNodeMap.get(id);
 	}
-	
+
 	class CheckHeartBeat implements Runnable {
 		@Override
 		public void run() {
-			while(isRun) {
+			while (isRun) {
 				long curTime = System.currentTimeMillis();
 				Set<Entry<Integer, Long>> entrySet = dataNodeTime.entrySet();
-				for(Entry<Integer, Long> entry : entrySet) {
+				for (Entry<Integer, Long> entry : entrySet) {
 					int key = entry.getKey();
 					long time = entry.getValue();
-					if((curTime - time) > heartbeatSec * 1000) {
+					if ((curTime - time) > heartbeatSec * 1000) {
 						DataNodeStorage dataNode = dataNodeMap.get(key);
 						logger.info("该datanode : " + dataNode.getIp() + " 已经死掉了");
 						dataNodeMap.remove(key);
@@ -83,6 +101,62 @@ public class DataNodeManager {
 			}
 		}
 	}
+
+	public List<DataNodeStorage> getBlockDataNode() {
+		List<DataNodeStorage> dataNodeList = new ArrayList<>();
+		int blockReplication = Integer.parseInt(StorageConf.getVal("block.replication"));
+		if (dataNodeQueue.size() < blockReplication) {
+			for (DataNodeStorage dataNode : dataNodeQueue) {
+				dataNodeList.add(dataNode);
+			}
+		} else {
+			for (int i = 0; i < blockReplication; i++) {
+				DataNodeStorage dataNode = dataNodeQueue.poll();
+				dataNodeList.add(dataNode);
+			}
+		}
+		return dataNodeList;
+	}
+
+	public PortInfo getPortInfo() {
+		return portInfoList.poll();
+	}
+	
+	public boolean recoverPortInfo(PortInfo portInfo) {
+		return portInfoList.add(portInfo);
+	}
+	
+	public boolean registerPortInfo(PortInfo portInfo) {
+		return portInfoList.add(portInfo);
+	}	
+	
+	public class PortInfo {
+		private int dataPort;
+		private int responsePort;
+
+		public PortInfo(int dataPort, int rpcPort) {
+			super();
+			this.dataPort = dataPort;
+			this.responsePort = rpcPort;
+		}
+
+		public int getDataPort() {
+			return dataPort;
+		}
+
+		public void setDataPort(int dataPort) {
+			this.dataPort = dataPort;
+		}
+
+		public int getResponsePort() {
+			return responsePort;
+		}
+
+		public void setResponsePort(int responsePort) {
+			this.responsePort = responsePort;
+		}
+	}
+
 	public static void main(String[] args) {
 		Map<String, String> map = new HashMap<>();
 		map.put("xxy", "1");

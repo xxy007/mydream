@@ -10,8 +10,8 @@ public class DataNodeReport implements DataNodeReportOperator{
 	}
 	
 	@Override
-	public int registerDataNode(String ip, int dataPort, int rpcPort, long diskCapacity, long usedDiskCapacity) {
-		return nameNode.registerDataNode(ip, dataPort, rpcPort, diskCapacity, usedDiskCapacity);
+	public int registerDataNode(String ip, int rpcPort, long diskCapacity, long usedDiskCapacity) {
+		return nameNode.registerDataNode(ip, rpcPort, diskCapacity, usedDiskCapacity);
 	}
 	@Override
 	public void updateDataNode(int storageId, long diskCapacity, long usedDiskCapacity) {

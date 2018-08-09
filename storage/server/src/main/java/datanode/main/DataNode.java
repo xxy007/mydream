@@ -15,7 +15,7 @@ import org.apache.log4j.Logger;
 import configuration.StorageConf;
 import datanode.rpc.DataNodeReport;
 import datanode.rpc.DataNodeReportOperator;
-import datanode.rpc.DataNodeReportRpc;
+import rpc.RpcSender;
 import tools.FileFilter;
 
 public class DataNode {
@@ -56,8 +56,8 @@ public class DataNode {
 		String nameNodeRpcIp = StorageConf.getVal("namenode.ip", "192.168.137.130");
 		int nameNodeRpcPort = Integer.parseInt(StorageConf.getVal("datanode.rpc.port", "3333"));
 		dataPath = StorageConf.getVal("dataNode.storage.dir", "/home/hadoop/xxytest/mydream/data");
-		DataNodeReportRpc dataNodeReportRpc = new DataNodeReportRpc(nameNodeRpcIp, nameNodeRpcPort);
-		dataNodeReportOperator = dataNodeReportRpc.create(new DataNodeReport(null));
+		RpcSender rpcSender = new RpcSender(nameNodeRpcIp, nameNodeRpcPort);
+		dataNodeReportOperator = rpcSender.create(new DataNodeReport(null));
 		storageId = registerDataNode();
 		logger.info("datanode " + ip + " get storageId is : " + storageId);
 		reportBlock();
@@ -67,12 +67,11 @@ public class DataNode {
 	}
 	
 	public static int registerDataNode() throws IOException {
-		int dataPort = Integer.parseInt(StorageConf.getVal("datanode.data.port", "2222"));
 		int rpcPort = Integer.parseInt(StorageConf.getVal("datanode.rpc.port", "3333"));
 		InetAddress addr = InetAddress.getLocalHost();
 		ip = addr.getHostAddress().toString(); // 获取本机ip
 		DiskInfo diskInfo = getDiskInfo(dataPath);
-		return dataNodeReportOperator.registerDataNode(ip, dataPort, rpcPort, diskInfo.getSize(), diskInfo.getUsed());
+		return dataNodeReportOperator.registerDataNode(ip, rpcPort, diskInfo.getSize(), diskInfo.getUsed());
 	}
 	
 	public static void updateDataNode() throws IOException {
