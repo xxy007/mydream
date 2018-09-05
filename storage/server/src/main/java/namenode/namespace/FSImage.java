@@ -22,9 +22,10 @@ public class FSImage {
 	private INodeDirectory rootDir = null;
 	private long readLineNum = 0;
 	private String imageDir;
-	private String srcImageFile;
+	private String imageTmpDir;
 
 	private Logger logger = Logger.getLogger(FSImage.class);
+
 	public FSImage(BlocksManager blocksManager) {
 		super();
 		this.blocksManager = blocksManager;
@@ -43,12 +44,20 @@ public class FSImage {
 	}
 
 	public void loadFSImage() throws IOException {
-		imageDir = StorageConf.getVal("namenode.fsimage.path", "/home/hadoop/xxytest/mydream/fsimage");
+		imageDir = StorageConf.getVal("namenode.fsimage.path", "/home/hadoop/xxytest/mydream/fsimage") + "/current";
+		imageTmpDir = StorageConf.getVal("namenode.fsimage.path", "/home/hadoop/xxytest/mydream/fsimage") + "/tmp";
 		if (imageDir == null) {
 			throw new ConfigurationException("读取配置项image.path失败，该配置项设置数据在节点中存放的目录，必须设置");
 		}
-		File imageFile = new File(imageDir);
-		File[] files = imageFile.listFiles(new FileFilter("fsimage_[0-9]+$"));
+		File imageDirFile = new File(imageDir);
+		File imageTmpDirFile = new File(imageTmpDir);
+		if (!imageDirFile.exists()) {
+			imageDirFile.mkdirs();
+		}
+		if (!imageTmpDirFile.exists()) {
+			imageTmpDirFile.mkdirs();
+		}
+		File[] files = imageDirFile.listFiles(new FileFilter("fsimage_[0-9]+$"));
 		if (files == null || files.length == 0) {
 			long id = Sequence.nextVal();
 			rootDir = new INodeDirectory(id, "ROOT");
@@ -58,7 +67,6 @@ public class FSImage {
 			throw new FSImageLoadException("fsimage文件存在多个，读取异常");
 		}
 		File file = files[0];
-		srcImageFile = file.getPath();
 		try (FileReader fr = new FileReader(file); BufferedReader br = new BufferedReader(fr);) {
 			INodeDirectory nullNode = null;
 			loadImageToNode(br, nullNode);
@@ -119,45 +127,50 @@ public class FSImage {
 		}
 	}
 
-//	public static void main(String[] args) throws IOException {
-//		StorageConf.setVal("image.path", "C:\\fsimage");
-//		FSImage fsImage = new FSImage();
-//		fsImage.loadFSImage();
-//		// String regex = "fsimage_[0-9]+$";
-//		// Pattern p = Pattern.compile(regex);
-//		// Matcher m = p.matcher("fsimage_165453");
-//		// System.out.println(m.find());
-//		// String txt = "1|2|app2|1|5,6|";
-//		// String[] info = txt.split("\\|", -1);
-//		// System.out.println(info[5]);
-//		// System.out.println(Arrays.asList(info));
-//		// System.out.println(info.length);
-//		INodeDirectory rootDir = fsImage.getRootDir();
-//		System.out.println(rootDir);
-//		System.out.println(genRootStr(rootDir));
-//		printNode(rootDir);
-//	}
+	// public static void main(String[] args) throws IOException {
+	// StorageConf.setVal("image.path", "C:\\fsimage");
+	// FSImage fsImage = new FSImage();
+	// fsImage.loadFSImage();
+	// // String regex = "fsimage_[0-9]+$";
+	// // Pattern p = Pattern.compile(regex);
+	// // Matcher m = p.matcher("fsimage_165453");
+	// // System.out.println(m.find());
+	// // String txt = "1|2|app2|1|5,6|";
+	// // String[] info = txt.split("\\|", -1);
+	// // System.out.println(info[5]);
+	// // System.out.println(Arrays.asList(info));
+	// // System.out.println(info.length);
+	// INodeDirectory rootDir = fsImage.getRootDir();
+	// System.out.println(rootDir);
+	// System.out.println(genRootStr(rootDir));
+	// printNode(rootDir);
+	// }
 
 	public void printNode() throws IOException {
-		if(rootDir == null) {
+		if (rootDir == null) {
 			return;
 		}
 		long imageId = Sequence.nextVal();
-		String imageNextFile = imageDir + "/fsimage_" + imageId;
-		File nextFile = new File(imageNextFile);
-		if(nextFile.exists())
-			nextFile.delete();
-		nextFile.createNewFile();
-		FileWriter writer = new FileWriter(nextFile);
+		String fileName = "fsimage_" + imageId;
+		String imageNextFile = imageTmpDir + "/" + fileName;
+		File nextImageFile = new File(imageNextFile);
+		if (nextImageFile.exists())
+			nextImageFile.delete();
+		nextImageFile.createNewFile();
+		FileWriter writer = new FileWriter(nextImageFile);
 		writer.write(genRootStr(rootDir));
 		writer.write("\r\n");
 		printNode(writer, rootDir);
 		writer.flush();
 		writer.close();
-		File srcImage = new File(srcImageFile);
-		srcImage.delete();
+		File imageDirFile = new File(imageDir);
+		if (imageDirFile.exists()) {
+			imageDirFile.delete();
+		}
+		imageDirFile.mkdirs();
+		nextImageFile.renameTo(new File(imageDir + "/" + fileName));
 	}
-	
+
 	public void printNode(FileWriter writer, INode node) throws IOException {
 		if (node.isDirectory()) {
 			INodeDirectory dirNode = (INodeDirectory) node;

@@ -3,7 +3,6 @@ package datanode.storage;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -17,7 +16,6 @@ import configuration.StorageConf;
 public class DataNodeManager {
 	private Map<Integer, DataNodeStorage> dataNodeMap = new ConcurrentHashMap<>();
 	private Map<Integer, Long> dataNodeTime = new ConcurrentHashMap<>();
-	private LinkedList<PortInfo> portInfoList = new LinkedList<>();
 	private PriorityQueue<DataNodeStorage> dataNodeQueue = new PriorityQueue<>(new Comparator<DataNodeStorage>() {
 		@Override
 		public int compare(DataNodeStorage o1, DataNodeStorage o2) {
@@ -33,10 +31,6 @@ public class DataNodeManager {
 	private static Logger logger = Logger.getLogger(DataNodeManager.class);
 
 	public DataNodeManager(boolean isRun) {
-		for (int i = 0; i < 100; i++) {
-			PortInfo portInfo = new PortInfo(40000 + i*2, 40000 + i*2 + 1);
-			portInfoList.add(portInfo);
-		}
 		this.isRun = isRun;
 		heartbeatSec = Integer.parseInt(StorageConf.getVal("datanode.heartbeat.die.second", "630"));
 		Thread t = new Thread(new CheckHeartBeat());
@@ -116,45 +110,6 @@ public class DataNodeManager {
 			}
 		}
 		return dataNodeList;
-	}
-
-	public PortInfo getPortInfo() {
-		return portInfoList.poll();
-	}
-	
-	public boolean recoverPortInfo(PortInfo portInfo) {
-		return portInfoList.add(portInfo);
-	}
-	
-	public boolean registerPortInfo(PortInfo portInfo) {
-		return portInfoList.add(portInfo);
-	}	
-	
-	public class PortInfo {
-		private int dataPort;
-		private int responsePort;
-
-		public PortInfo(int dataPort, int rpcPort) {
-			super();
-			this.dataPort = dataPort;
-			this.responsePort = rpcPort;
-		}
-
-		public int getDataPort() {
-			return dataPort;
-		}
-
-		public void setDataPort(int dataPort) {
-			this.dataPort = dataPort;
-		}
-
-		public int getResponsePort() {
-			return responsePort;
-		}
-
-		public void setResponsePort(int responsePort) {
-			this.responsePort = responsePort;
-		}
 	}
 
 	public static void main(String[] args) {

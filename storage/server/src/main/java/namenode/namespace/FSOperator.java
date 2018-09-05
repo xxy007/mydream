@@ -1,8 +1,6 @@
 package namenode.namespace;
 
 import java.util.List;
-
-import datanode.storage.DataNodeManager.PortInfo;
 import datanode.storage.DataNodeStorage;
 import namenode.block.BlockInfo;
 
@@ -16,8 +14,4 @@ public interface FSOperator {
 	void addBlockInfo(String filePath, BlockInfo blockInfo);
 	
 	List<DataNodeStorage> getDataNode();
-	
-	PortInfo getPortInfo();
-	
-	boolean recoverPortInfo(PortInfo portInfo);
 }

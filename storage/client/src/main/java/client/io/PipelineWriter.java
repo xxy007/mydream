@@ -8,33 +8,30 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.log4j.Logger;
-import datanode.storage.DataNodeManager.PortInfo;
 import datanode.storage.DataNodeStorage;
 import exception.PipelineException;
-import namenode.namespace.FSOperator;
 import pipeline.DataPackage;
 import pipeline.DataPipeline;
+import pipeline.PortInfo;
 import pipeline.ResponseInfo;
 import rpc.RpcSender;
 import tools.ExceptionUtil;
 
 public class PipelineWriter {
-	private final FSOperator fsOperator;
 	private ObjectInputStream responseReceive;
 	private ObjectOutputStream dataSend;
 	private String ip;
 	private List<DataNodeStorage> dataNodeList;
-	private PortInfo portInfo;
 	private Logger logger = Logger.getLogger(PipelineWriter.class);
 
-	public PipelineWriter(FSOperator fsOperator, long blockId) {
+	public PipelineWriter(List<DataNodeStorage> dataNodeList, long blockId) {
 		super();
-		this.fsOperator = fsOperator;
 		try {
-			dataNodeList = fsOperator.getDataNode();
-			portInfo = fsOperator.getPortInfo();
-			setUpPipeline(blockId, dataNodeList, portInfo);
+			this.dataNodeList = dataNodeList;
+			setUpPipeline(blockId, dataNodeList);
 		} catch (IOException e) {
 			logger.error(ExceptionUtil.getStackTrace(e));
 		}
@@ -49,8 +46,8 @@ public class PipelineWriter {
 	public boolean sendPackage(DataPackage dataPackage) throws IOException {
 		dataSend.writeObject(dataPackage);
 		try {
-			ResponseInfo responseInfo = (ResponseInfo)responseReceive.readObject();
-			if(responseInfo.getResultCode() != 100) {
+			ResponseInfo responseInfo = (ResponseInfo) responseReceive.readObject();
+			if (responseInfo.getResultCode() != 100) {
 				throw new PipelineException(responseInfo.getReason());
 			}
 		} catch (ClassNotFoundException e) {
@@ -59,34 +56,69 @@ public class PipelineWriter {
 		}
 		return true;
 	}
-	
-	private void setUpPipeline(long blockId, List<DataNodeStorage> dataNodeList, PortInfo portInfo) throws IOException {
-		int dataPort = portInfo.getDataPort();
-		int responsePort = portInfo.getResponsePort();
-		int size = dataNodeList.size();
 
-		if (!setUpClientResponse(responsePort)) {
+	private void setUpPipeline(long blockId, List<DataNodeStorage> dataNodeList) throws IOException {
+		int size = dataNodeList.size();
+		if(size == 0) {
+			throw new PipelineException("获取pipeline的dataNode列表失败");
+		}
+		ServerSocket receiveResponseServer = new ServerSocket(0, 1);
+		int receiveResponsePort = receiveResponseServer.getLocalPort();
+		receiveResponseServer.close();
+		if (!setUpClientResponse(receiveResponsePort)) {
 			throw new PipelineException("客户端启动接收应答失败");
 		}
-		if (size == 0) {
-			DataNodeStorage dataNode = dataNodeList.get(0);
-			DataPipeline dataPipeline = getPipelineRpc(dataNode);
-			dataPipeline.setUpPipeline(blockId, ip, null, dataPort, responsePort, true);
-		}
-		for (int i = size - 1; i >= 0; i--) {
+		Map<Integer, PortInfo> portInfoMap = new ConcurrentHashMap<>();
+		for (int i = 0; i < size; i++) {
 			DataNodeStorage dataNode = dataNodeList.get(i);
 			DataPipeline dataPipeline = getPipelineRpc(dataNode);
+			PortInfo portInfo;
 			if (i == size - 1) {
-				dataPipeline.setUpPipeline(blockId, dataNodeList.get(i - 1).getIp(), null, dataPort, responsePort,
-						true);
-			} else if (i == 0) {
-				dataPipeline.setUpPipeline(blockId, ip, dataNodeList.get(i + 1).getIp(), dataPort, responsePort, false);
+				portInfo = dataPipeline.setUpPipeline(blockId, true);
 			} else {
-				dataPipeline.setUpPipeline(blockId, dataNodeList.get(i - 1).getIp(), dataNodeList.get(i + 1).getIp(),
-						dataPort, responsePort, false);
+				portInfo = dataPipeline.setUpPipeline(blockId, false);
+			}
+			portInfoMap.put(dataNode.getStorageId(), portInfo);
+		}
+		for (int i = 0; i < size; i++) {
+			DataNodeStorage dataNode = dataNodeList.get(i);
+			DataPipeline dataPipeline = getPipelineRpc(dataNode);
+			if (size == 1) {
+				dataPipeline.setPipelineInfo(blockId, ip, null, 0, receiveResponsePort);
+			} else if (i == 0) {
+				DataNodeStorage nextDataNode = dataNodeList.get(i + 1);
+				PortInfo nextPortInfo = portInfoMap.get(nextDataNode.getStorageId());
+				if (nextPortInfo == null) {
+					throw new PipelineException("获取portInfo信息失败");
+				} else {
+					dataPipeline.setPipelineInfo(blockId, ip, nextDataNode.getIp(), nextPortInfo.getReceiveDataPort(),
+							receiveResponsePort);
+				}
+			} else if (i == (size - 1)) {
+				DataNodeStorage preDataNode = dataNodeList.get(i - 1);
+				PortInfo prePortInfo = portInfoMap.get(preDataNode.getStorageId());
+				if (prePortInfo == null) {
+					throw new PipelineException("获取portInfo信息失败");
+				} else {
+					dataPipeline.setPipelineInfo(blockId, preDataNode.getIp(), null, 0,
+							prePortInfo.getReceiveResponsePort());
+				}
+			} else {
+				DataNodeStorage nextDataNode = dataNodeList.get(i + 1);
+				DataNodeStorage preDataNode = dataNodeList.get(i - 1);
+				PortInfo nextPortInfo = portInfoMap.get(nextDataNode.getStorageId());
+				PortInfo prePortInfo = portInfoMap.get(preDataNode.getStorageId());
+				if (nextPortInfo == null || prePortInfo == null) {
+					throw new PipelineException("获取portInfo信息失败");
+				} else {
+					dataPipeline.setPipelineInfo(blockId, preDataNode.getIp(), nextDataNode.getIp(),
+							nextPortInfo.getReceiveDataPort(), prePortInfo.getReceiveResponsePort());
+				}
 			}
 		}
-		if (!setUpClientSend(dataPort, dataNodeList.get(0).getIp())) {
+		DataNodeStorage firstDataNode = dataNodeList.get(0);
+		PortInfo firstPortInfo = portInfoMap.get(firstDataNode.getStorageId());
+		if (!setUpClientSend(firstPortInfo.getReceiveDataPort(), firstDataNode.getIp())) {
 			throw new PipelineException("客户端启动发送数据失败");
 		}
 	}
@@ -94,19 +126,17 @@ public class PipelineWriter {
 	@SuppressWarnings("resource")
 	private boolean setUpClientResponse(int responsePort) {
 		ServerSocket serverSocket = null;
+		Socket socket = null;
 		try {
 			serverSocket = new ServerSocket(responsePort);
-			Socket socket = serverSocket.accept();
+			socket = serverSocket.accept();
 			responseReceive = new ObjectInputStream(socket.getInputStream());
 		} catch (IOException e) {
 			e.printStackTrace();
 			try {
-				if (responseReceive != null) {
-					responseReceive.close();
-				}
-				if (serverSocket != null) {
-					serverSocket.close();
-				}
+				closeObject(responseReceive);
+				closeObject(socket);
+				closeObject(serverSocket);
 			} catch (IOException e1) {
 				e1.printStackTrace();
 			}
@@ -114,7 +144,7 @@ public class PipelineWriter {
 		}
 		return true;
 	}
-	
+
 	@SuppressWarnings("resource")
 	private boolean setUpClientSend(int dataPort, String nextIp) {
 		Socket sendSocket = null;
@@ -142,8 +172,8 @@ public class PipelineWriter {
 		RpcSender rpcSender = new RpcSender(dataNode.getIp(), dataNode.getRpcPort());
 		return rpcSender.create(new DataPipeline());
 	}
+
 	public void close() throws IOException {
-		fsOperator.recoverPortInfo(portInfo);
 		if (dataSend != null) {
 			dataSend.close();
 		}
@@ -154,5 +184,12 @@ public class PipelineWriter {
 
 	public List<DataNodeStorage> getDataNodeList() {
 		return dataNodeList;
+	}
+
+	private void closeObject(Object obj) throws IOException {
+		if (obj != null && obj instanceof java.io.Closeable) {
+			java.io.Closeable closeObj = (java.io.Closeable) obj;
+			closeObj.close();
+		}
 	}
 }

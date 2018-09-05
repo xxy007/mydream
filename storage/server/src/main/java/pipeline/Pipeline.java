@@ -7,18 +7,18 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.lang.Thread.UncaughtExceptionHandler;
-import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketAddress;
 import java.net.SocketException;
 import java.util.LinkedList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
+import java.util.List;
 import org.apache.log4j.Logger;
 import configuration.StorageConf;
 import crc32.MyCrc;
+import datanode.storage.DataNodeStorage;
 import exception.ChecksumException;
+import exception.PipelineException;
+import io.netty.util.internal.StringUtil;
 import tools.ByteObject;
 import tools.ExceptionUtil;
 
@@ -27,74 +27,68 @@ public class Pipeline {
 	private long blockId;
 	private String preIp;
 	private String nextIp;
-	private int dataPort;
-	private int responsePort;
+	private int receiveDataPort;
+	private int receiveResponsePort;
+	private int sendDataPort = 0;
+	private int sendResponsePort = 0;
 	private boolean isLast;
 	private boolean isRun = false;
 	private Logger logger = Logger.getLogger(Pipeline.class);
-	public Pipeline(long blockId, String preIp, String nextIp, int dataPort, int responsePort, boolean isLast) {
+	private static int TIMEOUT_MILLSECOND = 60000;
+
+	public Pipeline(long blockId, boolean isLast) {
 		super();
 		ackQueue = new LinkedList<DataPackage>();
 		this.blockId = blockId;
-		this.preIp = preIp;
-		this.nextIp = nextIp;
-		this.dataPort = dataPort;
-		this.responsePort = responsePort;
 		this.isLast = isLast;
 	}
 
-	public void setUpPipeline() {
-		isRun = true;
-		PipelineThread pipeline = new PipelineThread();
-		Thread t = new Thread(pipeline);
-		t.setUncaughtExceptionHandler(new UncaughtPipelineException());
-		t.start();
+	public void setPipelineInfo(String preIp, String nextIp, int sendDataPort, int sendResponsePort) {
+		this.preIp = preIp;
+		this.nextIp = nextIp;
+		this.sendDataPort = sendDataPort;
+		this.sendResponsePort = sendResponsePort;
 	}
 
-	private class PipelineThread implements Runnable {
-		@Override
-		public void run() {
-			ReceiveThread receive = new ReceiveThread();
-			FutureTask<Boolean> receiveFutureTask = new FutureTask<>(receive, true);
-			receiveFutureTask.run();
+	public PortInfo setUpPipeline() {
+		PortInfo portInfo = null;
+		ServerSocket receiveDataServer = null;
+		ServerSocket receiveResponseServer = null;
+		try {
+			receiveDataServer = new ServerSocket(0, 1);
+			receiveDataPort = receiveDataServer.getLocalPort();
+			DataRunnable dataRunnable = new DataRunnable();
+			Thread dataThread = new Thread(dataRunnable);
+			dataThread.setUncaughtExceptionHandler(new UncaughtPipelineException());
+			dataThread.run();
 
-			long startTime = System.currentTimeMillis();
-			while (true) {
-				long stopTime = System.currentTimeMillis();
-				try {
-					boolean isConnect = connect(preIp, responsePort);
-					if (isConnect) {
-						break;
-					}
-					if ((stopTime - startTime) > 30000) {
-						throw new SocketException("连接超时");
-					}
-				} catch (SocketException e) {
-					logger.error(ExceptionUtil.getStackTrace(e));
-					isRun = false;
-					return;
-				}
-			}
-
-			ResponseThread response = new ResponseThread();
-			FutureTask<Boolean> responseFutureTask = new FutureTask<>(response, true);
-			responseFutureTask.run();
-
+			receiveResponseServer = new ServerSocket(0, 1);
+			receiveResponsePort = receiveResponseServer.getLocalPort();
+			ResponseRunnable responseRunnable = new ResponseRunnable();
+			Thread responseThread = new Thread(responseRunnable);
+			responseThread.setUncaughtExceptionHandler(new UncaughtPipelineException());
+			responseThread.run();
+			portInfo = new PortInfo(receiveDataPort, receiveResponsePort);
+		} catch (IOException e) {
+			logger.error(ExceptionUtil.getStackTrace(e));
+			isRun = false;
+			portInfo = null;
+		} finally {
 			try {
-				receiveFutureTask.get();
-				responseFutureTask.get();
-			} catch (InterruptedException | ExecutionException e) {
-				logger.error(ExceptionUtil.getStackTrace(e));
+				closeObject(receiveResponseServer);
+				closeObject(receiveDataServer);
+			} catch (IOException e) {
 				isRun = false;
+				logger.error(ExceptionUtil.getStackTrace(e));
 			}
 		}
-
+		return isRun ? portInfo : null;
 	}
 
-	private class ReceiveThread implements Runnable {
+	private class DataRunnable implements Runnable {
 		private String filePath;
 
-		public ReceiveThread() {
+		public DataRunnable() {
 			super();
 			String dataDir = StorageConf.getVal("dataNode.storage.dir");
 			this.filePath = dataDir + File.separator + "bk_" + blockId;
@@ -103,162 +97,244 @@ public class Pipeline {
 		@Override
 		public void run() {
 			if (!isLast) {
-				try (Socket sendSocket = new Socket(nextIp, dataPort);
-						ObjectOutputStream sendOutput = new ObjectOutputStream(sendSocket.getOutputStream());
-						ServerSocket server = new ServerSocket(dataPort);
-						Socket socket = server.accept();
-						ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
-						OutputStream out = new FileOutputStream(filePath);) {
-					while (isRun) {
-						DataPackage dataPackage = (DataPackage) input.readObject();
-						int dataStart = dataPackage.getDataStart();
-						int dataEnd = dataPackage.getDataEnd();
-						byte[] packageBuf = dataPackage.getPackageBuf();
-						ackQueue.add(dataPackage);
-						ackQueue.notifyAll();
-						sendOutput.writeObject(dataPackage);
-						if (dataStart == dataEnd) {
-							break;
-						}
-						out.write(packageBuf, dataStart, dataEnd);
-					}
-				} catch (IOException | ClassNotFoundException e) {
-					logger.error(ExceptionUtil.getStackTrace(e));
-					isRun = false;
-				} finally {
-				}
+				runNotLast();
 			} else {
-				try (ServerSocket server = new ServerSocket(dataPort);
-						Socket socket = server.accept();
-						ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
-						OutputStream out = new FileOutputStream(filePath);) {
-					while (isRun) {
-						DataPackage dataPackage = (DataPackage) input.readObject();
-						int chunksumEnd = dataPackage.getChunksumEnd();
-						int dataStart = dataPackage.getDataStart();
-						int dataEnd = dataPackage.getDataEnd();
-						byte[] packageBuf = dataPackage.getPackageBuf();
-						if (dataStart == dataEnd) {
-							break;
-						}
-						int i, j;
-						for (i = 0, j = dataStart; i < chunksumEnd && j < dataEnd; i = i + 4, j = j + 512) {
-							int chunksum = ByteObject.byteArrayToInt(packageBuf, i, 4);
-							int crc32 = MyCrc.getCrc32(packageBuf, j, 512);
-							if (chunksum != crc32) {
-								throw new ChecksumException("获取到的数据的crc验证码和解析得到的crc验证码不一致，数据错误");
-							}
-							out.write(packageBuf, j, 512);
-						}
-						if (i == chunksumEnd && j == dataEnd) {
+				runLast();
+			}
+		}
 
-						} else if (i == chunksumEnd && j > dataEnd) {
-							int chunksum = ByteObject.byteArrayToInt(packageBuf, i - 4, 4);
-							int crc32 = MyCrc.getCrc32(packageBuf, j - 512, dataEnd);
-							if (chunksum != crc32) {
-								throw new ChecksumException("获取到的数据的crc验证码和解析得到的crc验证码不一致，数据错误");
-							}
-							out.write(packageBuf, j - 512, dataEnd);
-
-						} else {
+		private void runLast() {
+			ServerSocket server = null;
+			Socket socket = null;
+			ObjectInputStream input = null;
+			OutputStream out = null;
+			try {
+				server = new ServerSocket(receiveDataPort);
+				server.setSoTimeout(TIMEOUT_MILLSECOND);
+				socket = server.accept();
+				input = new ObjectInputStream(socket.getInputStream());
+				out = new FileOutputStream(filePath);
+				while (isRun) {
+					DataPackage dataPackage = (DataPackage) input.readObject();
+					int chunksumEnd = dataPackage.getChunksumEnd();
+					int dataStart = dataPackage.getDataStart();
+					int dataEnd = dataPackage.getDataEnd();
+					byte[] packageBuf = dataPackage.getPackageBuf();
+					if (dataStart == dataEnd) {
+						break;
+					}
+					int i, j;
+					for (i = 0, j = dataStart; i < chunksumEnd && j < dataEnd; i = i + 4, j = j + 512) {
+						int chunksum = ByteObject.byteArrayToInt(packageBuf, i, 4);
+						int crc32 = MyCrc.getCrc32(packageBuf, j, 512);
+						if (chunksum != crc32) {
 							throw new ChecksumException("获取到的数据的crc验证码和解析得到的crc验证码不一致，数据错误");
 						}
-						ackQueue.add(dataPackage);
-						ackQueue.notifyAll();
+						out.write(packageBuf, j, 512);
 					}
-				} catch (IOException | ClassNotFoundException e) {
-					logger.error(ExceptionUtil.getStackTrace(e));
+					if (i == chunksumEnd && j == dataEnd) {
+
+					} else if (i == chunksumEnd && j > dataEnd) {
+						int chunksum = ByteObject.byteArrayToInt(packageBuf, i - 4, 4);
+						int crc32 = MyCrc.getCrc32(packageBuf, j - 512, dataEnd);
+						if (chunksum != crc32) {
+							throw new ChecksumException("获取到的数据的crc验证码和解析得到的crc验证码不一致，数据错误");
+						}
+						out.write(packageBuf, j - 512, dataEnd);
+
+					} else {
+						throw new ChecksumException("获取到的数据的crc验证码和解析得到的crc验证码不一致，数据错误");
+					}
+					ackQueue.add(dataPackage);
+					ackQueue.notifyAll();
+				}
+			} catch (IOException | ClassNotFoundException e) {
+				logger.error(ExceptionUtil.getStackTrace(e));
+				isRun = false;
+			} finally {
+				try {
+					closeObject(out);
+					closeObject(input);
+					closeObject(socket);
+					closeObject(server);
+				} catch (IOException e) {
 					isRun = false;
-				} finally {
+					logger.error(ExceptionUtil.getStackTrace(e));
+				}
+			}
+		}
+
+		private void runNotLast() {
+			ServerSocket server = null;
+			Socket socket = null;
+			ObjectInputStream input = null;
+			OutputStream out = null;
+			Socket sendSocket = null;
+			ObjectOutputStream sendOutput = null;
+			try {
+				server = new ServerSocket(receiveDataPort);
+				server.setSoTimeout(TIMEOUT_MILLSECOND);
+				socket = server.accept();
+				input = new ObjectInputStream(socket.getInputStream());
+				out = new FileOutputStream(filePath);
+				checkIpAndPort(nextIp, sendDataPort);
+				sendSocket = new Socket(nextIp, sendDataPort);
+				sendOutput = new ObjectOutputStream(sendSocket.getOutputStream());
+				while (isRun) {
+					DataPackage dataPackage = (DataPackage) input.readObject();
+					int dataStart = dataPackage.getDataStart();
+					int dataEnd = dataPackage.getDataEnd();
+					byte[] packageBuf = dataPackage.getPackageBuf();
+					ackQueue.add(dataPackage);
+					ackQueue.notifyAll();
+					sendOutput.writeObject(dataPackage);
+					if (dataStart == dataEnd) {
+						break;
+					}
+					out.write(packageBuf, dataStart, dataEnd);
+				}
+			} catch (IOException | ClassNotFoundException e) {
+				logger.error(ExceptionUtil.getStackTrace(e));
+				isRun = false;
+			} finally {
+				try {
+					closeObject(out);
+					closeObject(input);
+					closeObject(socket);
+					closeObject(server);
+					closeObject(sendOutput);
+					closeObject(sendSocket);
+				} catch (IOException e) {
+					isRun = false;
+					logger.error(ExceptionUtil.getStackTrace(e));
 				}
 			}
 		}
 	}
 
-	private class ResponseThread implements Runnable {
-
+	private class ResponseRunnable implements Runnable {
 		@Override
 		public void run() {
 			if (!isLast) {
-				try (ServerSocket receiveResponseServer = new ServerSocket(responsePort);
-						Socket receiveResponseSocket = receiveResponseServer.accept();
-						ObjectInputStream receiveInput = new ObjectInputStream(receiveResponseSocket.getInputStream());
-						Socket sendResponseSocket = new Socket(preIp, responsePort);
-						ObjectOutputStream sendResponseOutput = new ObjectOutputStream(
-								sendResponseSocket.getOutputStream());) {
-					while (isRun) {
-						ResponseInfo responseInfo = (ResponseInfo) receiveInput.readObject();
-						if (responseInfo.getResultCode() != 100) {
-							sendResponseOutput.writeObject(responseInfo);
-							break;
-						}
-						long reqId = responseInfo.getReqId();
-						DataPackage firstPackage;
-						while ((firstPackage = ackQueue.getFirst()) == null) {
-							ackQueue.wait();
-						}
-						long ackReqId = firstPackage.getReqId();
-						if (ackReqId != reqId) {
-							responseInfo.setReason("获取到的应答数据和自身记录数据不一致，pipeline出错");
-							responseInfo.setResultCode(110);
-							sendResponseOutput.writeObject(responseInfo);
-							break;
-						}
-						if (firstPackage.getDataStart() == firstPackage.getDataEnd()) {
-							sendResponseOutput.writeObject(responseInfo);
-							ackQueue.clear();
-							break;
-						}
-						sendResponseOutput.writeObject(responseInfo);
-					}
-				} catch (IOException | ClassNotFoundException | InterruptedException e) {
-					logger.error(ExceptionUtil.getStackTrace(e));
-					isRun = false;
-				} finally {
-				}
+				runNotLast();
 			} else {
-				try (Socket respSocket = new Socket(preIp, responsePort);
-						ObjectOutputStream respOutput = new ObjectOutputStream(respSocket.getOutputStream());) {
-					while (isRun) {
-						DataPackage firstPackage;
-						while ((firstPackage = ackQueue.getFirst()) == null) {
-							ackQueue.wait();
-						}
-						ResponseInfo responseInfo = new ResponseInfo();
-						responseInfo.setReqId(firstPackage.getReqId());
-						responseInfo.setResultCode(100);
-						respOutput.writeObject(responseInfo);
-						if (firstPackage.getDataStart() == firstPackage.getDataEnd()) {
-							ackQueue.clear();
-							break;
-						}
+				runLast();
+			}
+		}
+		private void runLast() {
+			try (Socket respSocket = new Socket(preIp, sendResponsePort);
+					ObjectOutputStream respOutput = new ObjectOutputStream(respSocket.getOutputStream());) {
+				while (isRun) {
+					DataPackage firstPackage;
+					while ((firstPackage = ackQueue.getFirst()) == null) {
+						ackQueue.wait();
 					}
-				} catch (IOException | InterruptedException e) {
-					logger.error(ExceptionUtil.getStackTrace(e));
+					ResponseInfo responseInfo = new ResponseInfo();
+					responseInfo.setReqId(firstPackage.getReqId());
+					responseInfo.setResultCode(100);
+					respOutput.writeObject(responseInfo);
+					if (firstPackage.getDataStart() == firstPackage.getDataEnd()) {
+						ackQueue.clear();
+						break;
+					}
+				}
+			} catch (IOException | InterruptedException e) {
+				logger.error(ExceptionUtil.getStackTrace(e));
+				isRun = false;
+			} finally {
+			}
+		}
+		private void runNotLast() {
+			ServerSocket receiveResponseServer = null;
+			Socket receiveResponseSocket = null;
+			ObjectInputStream receiveInput = null;
+			Socket sendResponseSocket = null;
+			ObjectOutputStream sendResponseOutput = null;
+			try {
+				receiveResponseServer = new ServerSocket(receiveResponsePort);
+				receiveResponseServer.setSoTimeout(TIMEOUT_MILLSECOND);
+				receiveResponseSocket = receiveResponseServer.accept();
+				receiveInput = new ObjectInputStream(receiveResponseSocket.getInputStream());
+				checkIpAndPort(preIp, sendResponsePort);
+				sendResponseSocket = new Socket(preIp, sendResponsePort);
+				sendResponseOutput = new ObjectOutputStream(sendResponseSocket.getOutputStream());
+				while (isRun) {
+					ResponseInfo responseInfo = (ResponseInfo) receiveInput.readObject();
+					if (responseInfo.getResultCode() != 100) {
+						sendResponseOutput.writeObject(responseInfo);
+						break;
+					}
+					long reqId = responseInfo.getReqId();
+					DataPackage firstPackage;
+					while ((firstPackage = ackQueue.getFirst()) == null) {
+						ackQueue.wait();
+					}
+					long ackReqId = firstPackage.getReqId();
+					if (ackReqId != reqId) {
+						responseInfo.setReason("获取到的应答数据和自身记录数据不一致，pipeline出错");
+						responseInfo.setResultCode(110);
+						sendResponseOutput.writeObject(responseInfo);
+						break;
+					}
+					if (firstPackage.getDataStart() == firstPackage.getDataEnd()) {
+						sendResponseOutput.writeObject(responseInfo);
+						ackQueue.clear();
+						break;
+					}
+					sendResponseOutput.writeObject(responseInfo);
+				}
+			} catch (IOException | ClassNotFoundException | InterruptedException e) {
+				logger.error(ExceptionUtil.getStackTrace(e));
+				isRun = false;
+			} finally {
+				try {
+					closeObject(receiveInput);
+					closeObject(receiveResponseSocket);
+					closeObject(receiveResponseServer);
+					closeObject(sendResponseOutput);
+					closeObject(sendResponseSocket);
+				} catch (IOException e) {
 					isRun = false;
-				} finally {
+					logger.error(ExceptionUtil.getStackTrace(e));
 				}
 			}
 		}
 	}
 
 	private class UncaughtPipelineException implements UncaughtExceptionHandler {
-		/**
-		 * 这里可以做任何针对异常的处理,比如记录日志等等
-		 */
 		public void uncaughtException(Thread a, Throwable e) {
 			isRun = false;
 			logger.error(ExceptionUtil.getStackTrace(e));
 		}
 	}
-	
-	private boolean connect(String ip, int port) throws SocketException {
-		try (Socket socket = new Socket();) {
-			SocketAddress address = new InetSocketAddress(ip, port);
-			socket.connect(address);
-		} catch (IOException e) {
-			return false;
+
+	private void closeObject(Object obj) throws IOException {
+		if (obj != null && obj instanceof java.io.Closeable) {
+			java.io.Closeable closeObj = (java.io.Closeable) obj;
+			closeObj.close();
 		}
-		return true;
+	}
+	
+	private boolean checkIpAndPort(String ip, int port) throws PipelineException {
+		long startTime = System.currentTimeMillis();
+		while (true) {
+			long stopTime = System.currentTimeMillis();
+			if(StringUtil.isNullOrEmpty(nextIp) || sendDataPort == 0) {
+				if ((stopTime - startTime) > 30000) {
+					throw new PipelineException("获取pipeline属性失败");
+				}	
+			}else {
+				return true;
+			}
+		}
+	}
+
+	public static void main(String[] args) throws IOException {
+		ServerSocket server1 = new ServerSocket(0, 1);
+		int port1 = server1.getLocalPort();
+		System.out.println(port1);
+		// ServerSocket server2 = new ServerSocket(0, 1);
+		// int port2 = server2.getLocalPort();
+		// System.out.println(port2);
 	}
 }

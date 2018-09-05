@@ -39,7 +39,7 @@ public class ClientOutputStream extends MyDreamOutputStream {
 		} catch (UnknownHostException e) {
 			logger.error(ExceptionUtil.getStackTrace(e));
 		}
-		pipelineWriter = new PipelineWriter(fsOperator, blockId);
+		pipelineWriter = new PipelineWriter(fsOperator.getDataNode(), blockId);
 	}
 
 	@Override
@@ -58,7 +58,7 @@ public class ClientOutputStream extends MyDreamOutputStream {
 				dataPackage = new DataPackage(Sequence.nextVal(), offsetInBlock, blockId);
 				pipelineWriter.sendPackage(dataPackage);
 				pipelineWriter.close();
-				pipelineWriter = new PipelineWriter(fsOperator, Sequence.nextVal());
+				pipelineWriter = new PipelineWriter(fsOperator.getDataNode(), Sequence.nextVal());
 			} else {
 				dataPackage = new DataPackage(Sequence.nextVal(), offsetInBlock++, blockId);
 			}

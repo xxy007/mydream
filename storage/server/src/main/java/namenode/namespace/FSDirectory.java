@@ -4,11 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import org.apache.log4j.Logger;
-
 import datanode.storage.DataNodeManager;
-import datanode.storage.DataNodeManager.PortInfo;
 import datanode.storage.DataNodeStorage;
 import exception.PathErrorException;
 import exception.PathNotFoundException;
@@ -163,13 +160,5 @@ public class FSDirectory implements FSOperator{
 	
 	public List<DataNodeStorage> getDataNode() {
 		return dataNodeManager.getBlockDataNode();
-	}
-	
-	public PortInfo getPortInfo() {
-		return dataNodeManager.getPortInfo();
-	}
-	
-	public boolean recoverPortInfo(PortInfo portInfo) {
-		return dataNodeManager.recoverPortInfo(portInfo);
 	}
 }
