@@ -69,7 +69,7 @@ public class DataNode {
 		int nameNodeRpcPort = Integer.parseInt(StorageConf.getVal("datanode.rpc.port", "3333"));
 		dataPath = StorageConf.getVal("dataNode.storage.dir", "/home/hadoop/xxytest/mydream/data");
 		RpcSender rpcSender = new RpcSender(nameNodeRpcIp, nameNodeRpcPort);
-		dataNodeReportOperator = rpcSender.create(new DataNodeReport(null));
+		dataNodeReportOperator = rpcSender.create(new DataNodeReport(null, null));
 		storageId = registerDataNode();
 		logger.info("datanode " + ip + " get storageId is : " + storageId);
 		reportBlock();

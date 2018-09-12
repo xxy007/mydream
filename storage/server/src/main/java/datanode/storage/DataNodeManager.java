@@ -2,7 +2,6 @@ package datanode.storage;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -46,6 +45,14 @@ public class DataNodeManager {
 		this.isRun = isRun;
 	}
 
+	/**
+	 * datanode向namenode注册自身信息
+	 * @param ip datanode ip
+	 * @param rpcPort datanode的rpc端口
+	 * @param diskCapacity datanode的磁盘空间
+	 * @param usedDiskCapacity datanode的已使用磁盘空间
+	 * @return namenode为该datanode分配的id,每个datanode唯一
+	 */
 	public int registerDataNode(String ip, int rpcPort, long diskCapacity, long usedDiskCapacity) {
 		int storageId = numDataNodes.incrementAndGet();
 		DataNodeStorage dataNodeStorage = new DataNodeStorage(storageId, rpcPort, ip, diskCapacity, usedDiskCapacity);
@@ -59,6 +66,12 @@ public class DataNodeManager {
 		return storageId;
 	}
 
+	/**
+	 * datanode向namenode发送心跳，namenode根据发送心跳时间判断datanode死活(根据写数据或者读数据的应答也可以判断datanode死活)
+	 * @param id datanode的id
+	 * @param diskCapacity 磁盘容量
+	 * @param usedDiskCapacity 已使用磁盘容量
+	 */
 	public void updateDataNode(int id, long diskCapacity, long usedDiskCapacity) {
 		DataNodeStorage dataNodeStorage = dataNodeMap.get(id);
 		if (dataNodeStorage == null) {
@@ -77,6 +90,11 @@ public class DataNodeManager {
 		return dataNodeMap.get(id);
 	}
 
+	/**
+	 * 根据datanode心跳时间判断datanode是否存活,定时任务
+	 * @author xingxy
+	 *
+	 */
 	class CheckHeartBeat implements Runnable {
 		@Override
 		public void run() {
@@ -113,5 +131,9 @@ public class DataNodeManager {
 		logger.info("namenode getBlockDataNode dataNodeQueue is : " + dataNodeQueue);
 		logger.info("namenode getBlockDataNode result is : " + dataNodeList);
 		return dataNodeList;
+	}
+
+	public int getNumDataNodes() {
+		return numDataNodes.get();
 	}
 }

@@ -2,10 +2,7 @@ package tools;
 
 import java.io.File;
 
-import org.apache.log4j.Logger;
-
 public class FileInfo {
-	private static Logger logger = Logger.getLogger(FileInfo.class);
 	public static long getFileSize(File file, CapacityUnit unit) {
 		long fileSize = file.length();
 		long result = 0;

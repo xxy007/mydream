@@ -1,7 +1,5 @@
 package tools;
 
-import org.apache.log4j.Logger;
-
 @SuppressWarnings("unchecked")
 public class LightSet<K, E extends K> implements XSet<K, E> {
 	private LinkedElement[] entries;
@@ -9,8 +7,6 @@ public class LightSet<K, E extends K> implements XSet<K, E> {
 	private int hashMask;
 
 	private int size;
-
-	private static Logger logger = Logger.getLogger(LightSet.class);
 
 	public LightSet(int capacity) {
 		// namenode可用内存的2%
