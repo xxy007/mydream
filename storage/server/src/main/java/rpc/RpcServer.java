@@ -81,6 +81,7 @@ public class RpcServer extends Rpc implements Runnable{
 			if (result != null) {
 				ctx.write(result);
 			}
+			logger.info("RPC result is : " + result);
 			ctx.flush();
 			ctx.close();
 		}

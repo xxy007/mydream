@@ -27,8 +27,4 @@ public class FileInfo {
 		}
 		return result;
 	}
-	public static void main(String[] args) {
-		File file = new File("C://aep-billing-portal-1.0.0-alogic.war");
-		logger.info(getFileSize(file, CapacityUnit.B));
-	}
 }

@@ -3,14 +3,13 @@ package client.io;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.List;
 import org.apache.log4j.Logger;
-
-import configuration.StorageConf;
+import datanode.storage.DataNodeStorage;
 import namenode.block.BlockInfo;
-import namenode.namespace.FSDirectory;
 import namenode.namespace.FSOperator;
 import pipeline.DataPackage;
-import rpc.RpcSender;
+import tools.ByteObject;
 import tools.ExceptionUtil;
 import tools.Sequence;
 
@@ -26,10 +25,10 @@ public class ClientOutputStream extends MyDreamOutputStream {
 	private PipelineWriter pipelineWriter; 
 	private Logger logger = Logger.getLogger(ClientOutputStream.class);
 
-	public ClientOutputStream(int chunkByteNums, int checksumByteNums, String filePath) {
+	public ClientOutputStream(FSOperator fsOperator, int chunkByteNums, int checksumByteNums, String filePath) {
 		super(chunkByteNums);
 		this.filePath = filePath;
-		this.fsOperator = getFsOperator();
+		this.fsOperator = fsOperator;
 		blockId = Sequence.nextVal();
 		long packageReqId = Sequence.nextVal();
 		dataPackage = new DataPackage(packageReqId, 0, blockId);
@@ -39,16 +38,26 @@ public class ClientOutputStream extends MyDreamOutputStream {
 		} catch (UnknownHostException e) {
 			logger.error(ExceptionUtil.getStackTrace(e));
 		}
-		pipelineWriter = new PipelineWriter(fsOperator.getDataNode(), blockId);
+		List<DataNodeStorage> dataNodeList = fsOperator.getDataNode();
+		logger.info("client get datanode list is : " + dataNodeList);
+		pipelineWriter = new PipelineWriter(dataNodeList, blockId);
 	}
 
 	@Override
 	protected void writeChunk(byte[] b, int bOffset, int bLen, byte[] checksum, int checksumOffset, int checksumLen)
 			throws IOException {
+		logger.info("client is writting one Chunk");
+		logger.info("write chunk context is : " + new String(b) + " write chunk check context is : " + new String(checksum));
 		dataPackage.writeHead(checksum, checksumOffset, checksumLen);
 		dataPackage.writeData(b, bOffset, bLen);
+		logger.info("this write checksum is : " + ByteObject.byteArrayToInt(checksum) + "checksumLen is : " + checksumLen + "checksumOffset is : " + checksumOffset);
+		logger.info("this write data is : " + new String(b) + "bLen is : " + bLen + "bOffset is : " + bOffset);
+		logger.info("this get checksum is : " + ByteObject.byteArrayToInt(dataPackage.getPackageBuf(), 0, 4) + "checksumLen is : " + dataPackage.getChunksumEnd() + "checksumOffset is : " + 0);
+		logger.info("this get data is : " + new String(dataPackage.getPackageBuf()) + "bLen is : " + dataPackage.getDataEnd() + "bOffset is : " + dataPackage.getDataStart());
 		dataPackage.incrChunkNums();
 		if (dataPackage.getMaxChunks() == dataPackage.getCurChunkNums()) {
+			logger.info("dataPackage's CurChunkNums is : " + dataPackage.getCurChunkNums());
+			logger.info("dataPackage's MaxChunks is : " + dataPackage.getMaxChunks());
 			pipelineWriter.sendPackage(dataPackage);
 			int offsetInBlock = dataPackage.getOffsetInBlock();
 			if (offsetInBlock == 2048) {
@@ -63,13 +72,6 @@ public class ClientOutputStream extends MyDreamOutputStream {
 				dataPackage = new DataPackage(Sequence.nextVal(), offsetInBlock++, blockId);
 			}
 		}
-	}
-	
-	private FSOperator getFsOperator() {
-		String nameNodeRpcIp = StorageConf.getVal("namenode.ip", "192.168.137.130");
-		int nameNodeRpcPort = Integer.parseInt(StorageConf.getVal("client.rpc.port", "1111"));
-		RpcSender rpcSender = new RpcSender(nameNodeRpcIp, nameNodeRpcPort);
-		return rpcSender.create(new FSDirectory(null));
 	}
 	
 	@Override

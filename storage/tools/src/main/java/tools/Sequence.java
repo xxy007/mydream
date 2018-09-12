@@ -8,8 +8,4 @@ public class Sequence {
 	public static long nextVal() {
 		return Long.parseLong(String.format("3%d%s", System.currentTimeMillis(), KeyGen.uuid(4, 0, 9)));
 	}
-	public static void main(String[] args) {
-		logger.info(nextVal());
-		logger.info(Long.MAX_VALUE);
-	}
 }

@@ -1,6 +1,13 @@
 package datanode.storage;
 
-public class DataNodeStorage implements DataNodeInfo {
+import java.io.Serializable;
+
+public class DataNodeStorage implements DataNodeInfo, Serializable {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 7865533446131479867L;
+
 	/**
 	 * datanode的唯一标识，从1开始
 	 */

@@ -59,7 +59,7 @@ public class ByteObject {
 	
 	public static int byteArrayToInt(byte[] b, int off, int len) {
 		byte[] a = new byte[4];
-		int i = a.length - 1, j = len;
+		int i = a.length - 1, j = len - 1;
 		for (; i >= 0; i--, j--) {
 			if (j >= 0)
 				a[i] = b[off + j];

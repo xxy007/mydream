@@ -49,7 +49,7 @@ public class NameNode {
 	public void startClientServ(INodeDirectory rootDir) {
 		int clientRpcPort = Integer.parseInt(StorageConf.getVal("client.rpc.port", "1111"));
 		String nameNodeIp = StorageConf.getVal("namenode.ip", "192.168.137.130");
-		clientServ = new RpcServer().setBindAddress(nameNodeIp).setPort(clientRpcPort).setInstance(new FSDirectory(rootDir));
+		clientServ = new RpcServer().setBindAddress(nameNodeIp).setPort(clientRpcPort).setInstance(new FSDirectory(rootDir, dataNodeManager));
 		Thread t = new Thread(clientServ);
 		t.setDaemon(true);
 		t.start();

@@ -21,8 +21,8 @@ public class FSImage {
 	private BlocksManager blocksManager;
 	private INodeDirectory rootDir = null;
 	private long readLineNum = 0;
-	private String imageDir;
-	private String imageTmpDir;
+	private static String IMAGE_DIR = StorageConf.getVal("namenode.fsimage.path", "/home/hadoop/xxytest/mydream/fsimage") + "/current";
+	private static String IMAGE_TMP_DIR = StorageConf.getVal("namenode.fsimage.path", "/home/hadoop/xxytest/mydream/fsimage") + "/tmp";
 
 	private Logger logger = Logger.getLogger(FSImage.class);
 
@@ -44,13 +44,11 @@ public class FSImage {
 	}
 
 	public void loadFSImage() throws IOException {
-		imageDir = StorageConf.getVal("namenode.fsimage.path", "/home/hadoop/xxytest/mydream/fsimage") + "/current";
-		imageTmpDir = StorageConf.getVal("namenode.fsimage.path", "/home/hadoop/xxytest/mydream/fsimage") + "/tmp";
-		if (imageDir == null) {
+		if (IMAGE_DIR == null) {
 			throw new ConfigurationException("读取配置项image.path失败，该配置项设置数据在节点中存放的目录，必须设置");
 		}
-		File imageDirFile = new File(imageDir);
-		File imageTmpDirFile = new File(imageTmpDir);
+		File imageDirFile = new File(IMAGE_DIR);
+		File imageTmpDirFile = new File(IMAGE_TMP_DIR);
 		if (!imageDirFile.exists()) {
 			imageDirFile.mkdirs();
 		}
@@ -127,32 +125,13 @@ public class FSImage {
 		}
 	}
 
-	// public static void main(String[] args) throws IOException {
-	// StorageConf.setVal("image.path", "C:\\fsimage");
-	// FSImage fsImage = new FSImage();
-	// fsImage.loadFSImage();
-	// // String regex = "fsimage_[0-9]+$";
-	// // Pattern p = Pattern.compile(regex);
-	// // Matcher m = p.matcher("fsimage_165453");
-	// // System.out.println(m.find());
-	// // String txt = "1|2|app2|1|5,6|";
-	// // String[] info = txt.split("\\|", -1);
-	// // System.out.println(info[5]);
-	// // System.out.println(Arrays.asList(info));
-	// // System.out.println(info.length);
-	// INodeDirectory rootDir = fsImage.getRootDir();
-	// System.out.println(rootDir);
-	// System.out.println(genRootStr(rootDir));
-	// printNode(rootDir);
-	// }
-
 	public void printNode() throws IOException {
 		if (rootDir == null) {
 			return;
 		}
 		long imageId = Sequence.nextVal();
 		String fileName = "fsimage_" + imageId;
-		String imageNextFile = imageTmpDir + "/" + fileName;
+		String imageNextFile = IMAGE_TMP_DIR + "/" + fileName;
 		File nextImageFile = new File(imageNextFile);
 		if (nextImageFile.exists())
 			nextImageFile.delete();
@@ -163,12 +142,14 @@ public class FSImage {
 		printNode(writer, rootDir);
 		writer.flush();
 		writer.close();
-		File imageDirFile = new File(imageDir);
-		if (imageDirFile.exists()) {
-			imageDirFile.delete();
+		logger.info("tmpimagefile : " + imageNextFile + " has written");
+		File imageDirFile = new File(IMAGE_DIR);
+		File[] childFiles = imageDirFile.listFiles();
+		for(File childFile : childFiles) {
+			childFile.delete();
+			logger.info("imagefile : " + childFile.getPath() + " has delete");
 		}
-		imageDirFile.mkdirs();
-		nextImageFile.renameTo(new File(imageDir + "/" + fileName));
+		nextImageFile.renameTo(new File(IMAGE_DIR + "/" + fileName));
 	}
 
 	public void printNode(FileWriter writer, INode node) throws IOException {

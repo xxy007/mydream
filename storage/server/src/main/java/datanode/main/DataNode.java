@@ -15,7 +15,9 @@ import org.apache.log4j.Logger;
 import configuration.StorageConf;
 import datanode.rpc.DataNodeReport;
 import datanode.rpc.DataNodeReportOperator;
+import pipeline.DataPipeline;
 import rpc.RpcSender;
+import rpc.RpcServer;
 import tools.FileFilter;
 
 public class DataNode {
@@ -51,6 +53,16 @@ public class DataNode {
 			return "DiskInfo [size=" + size + ", used=" + used + ", avail=" + avail + "]";
 		}
 	}
+	
+	public static void startPipelineServ() {
+		int dataNodeRpcPort = Integer.parseInt(StorageConf.getVal("datanode.rpc.port", "3333"));
+		RpcServer dataNodeRpcServ = new RpcServer().setBindAddress(ip).setPort(dataNodeRpcPort).setInstance(new DataPipeline());
+		Thread t = new Thread(dataNodeRpcServ);
+		t.setDaemon(true);
+		t.start();
+		logger.info("demon start datanode's Rpc Server, ip is : " + ip + " and port is : " + dataNodeRpcPort);
+	}
+	
 	public static void main(String[] args) throws IOException {
 		// 首先向namenode注册自己
 		String nameNodeRpcIp = StorageConf.getVal("namenode.ip", "192.168.137.130");
@@ -61,6 +73,7 @@ public class DataNode {
 		storageId = registerDataNode();
 		logger.info("datanode " + ip + " get storageId is : " + storageId);
 		reportBlock();
+		startPipelineServ();
 		int heartbeatSec = Integer.parseInt(StorageConf.getVal("datanode.heartbeat.second", "300"));
 		ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
 		executor.scheduleAtFixedRate(new HeartbeatThread(), 0, heartbeatSec, TimeUnit.SECONDS);

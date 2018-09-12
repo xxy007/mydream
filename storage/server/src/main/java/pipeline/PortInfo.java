@@ -1,6 +1,12 @@
 package pipeline;
 
-public class PortInfo {
+import java.io.Serializable;
+
+public class PortInfo implements Serializable{
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -8838524182498854601L;
 	private int receiveDataPort;
 	private int receiveResponsePort;
 	public PortInfo(int receiveDataPort, int receiveResponsePort) {

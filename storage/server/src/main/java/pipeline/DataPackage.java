@@ -13,9 +13,9 @@ public class DataPackage implements Serializable{
 	private int chunkNums = 0;
 	private byte[] packageBuf;
 	private final int offsetInBlock; // offset in block
-	private int checksumEnd;
-	private int dataStart;
-	private int dataEnd;
+	private int checksumEnd = 0;
+	private int dataStart = MAX_HEAD;
+	private int dataEnd = MAX_HEAD;
 	private final long blockId;
 	private static final int MAX_HEAD = 4 * 128;
 
@@ -23,7 +23,6 @@ public class DataPackage implements Serializable{
 		packageBuf = new byte[packageByteNums];
 		this.offsetInBlock = offsetInBlock;
 		this.blockId = blockId;
-		this.dataStart = this.dataEnd = MAX_HEAD;
 		this.reqId = reqId;
 	}
 
@@ -92,6 +91,6 @@ public class DataPackage implements Serializable{
 		return "DataPackage [reqId=" + reqId + ", maxChunks=" + maxChunks + ", packageByteNums=" + packageByteNums
 				+ ", chunkNums=" + chunkNums + ", offsetInBlock="
 				+ offsetInBlock + ", checksumEnd=" + checksumEnd + ", dataStart=" + dataStart + ", dataEnd=" + dataEnd
-				+ ", blockId=" + blockId + "]";
+				+ ", blockId=" + blockId + ", packageBuf=" + new String(packageBuf) + "]";
 	}
 }

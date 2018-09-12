@@ -30,11 +30,4 @@ public class MyCrc {
 		crc32.update(src);
 		return (int)crc32.getValue();
 	}
-	
-	public static void main(String[] args) {
-		CRC32 crc32 = new CRC32();
-		crc32.update("abcdqweqwrfasfaraffdsafsfFGWEGfg".getBytes());
-		int crc = (int)crc32.getValue();
-		System.out.println(crc);
-	}
 }

@@ -53,6 +53,7 @@ public class DataNodeManager {
 		dataNodeQueue.add(dataNodeStorage);
 		long curTime = System.currentTimeMillis();
 		dataNodeTime.put(storageId, curTime);
+		logger.info("registerDataNode dataNodeQueue result is : " + dataNodeQueue);
 		logger.info("registerDataNode dataNodeMap result is : " + dataNodeMap);
 		logger.info("registerDataNode dataNodeTime result is : " + dataNodeTime);
 		return storageId;
@@ -109,13 +110,8 @@ public class DataNodeManager {
 				dataNodeList.add(dataNode);
 			}
 		}
+		logger.info("namenode getBlockDataNode dataNodeQueue is : " + dataNodeQueue);
+		logger.info("namenode getBlockDataNode result is : " + dataNodeList);
 		return dataNodeList;
-	}
-
-	public static void main(String[] args) {
-		Map<String, String> map = new HashMap<>();
-		map.put("xxy", "1");
-		map.put("xxy", "2");
-		logger.info(map.get("xxy"));
 	}
 }

@@ -9,6 +9,7 @@ import datanode.storage.DataNodeManager;
 import datanode.storage.DataNodeStorage;
 import exception.PathErrorException;
 import exception.PathNotFoundException;
+import io.netty.util.internal.StringUtil;
 import namenode.block.BlockInfo;
 import tools.Sequence;
 
@@ -16,10 +17,11 @@ public class FSDirectory implements FSOperator{
 	private final INodeDirectory rootDir; // 没有name,parent属性，只有child，相当于根目录
 	private Logger logger = Logger.getLogger(FSDirectory.class);
 	private final ReentrantReadWriteLock dirLock;
-	private DataNodeManager dataNodeManager;
+	private final DataNodeManager dataNodeManager;
 
-	public FSDirectory(INodeDirectory rootDir) {
+	public FSDirectory(INodeDirectory rootDir, DataNodeManager dataNodeManager) {
 		this.rootDir = rootDir;
+		this.dataNodeManager = dataNodeManager;
 		this.dirLock = new ReentrantReadWriteLock(true);
 		logger.info("rootDir is " + rootDir);
 	}
@@ -78,6 +80,16 @@ public class FSDirectory implements FSOperator{
 		INodeDirectory parentNode = (INodeDirectory) findNode(parent, false);
 		logger.info("parentNode is " + parentNode);
 		String name = file.getName();
+		if(StringUtil.isNullOrEmpty(name)) {
+			logger.error("path is null or empty, please check");
+			return false;
+		}
+		for(INode childNode : parentNode.getChild()) {
+			if(name.equals(childNode.getName())) {
+				logger.error("path has exit, please check");
+				return false;
+			}
+		}
 		long nodeId = Sequence.nextVal();
 		INode node;
 		if (isFile) {
@@ -86,7 +98,7 @@ public class FSDirectory implements FSOperator{
 			node = new INodeDirectory(parentNode, nodeId, name);
 		}
 		parentNode.addChild(node);
-		logger.info("after add child parentNode is " + parentNode);
+		logger.info("after add child, parentNode is " + parentNode);
 		return true;
 	}
 

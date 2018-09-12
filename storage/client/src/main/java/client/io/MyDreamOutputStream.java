@@ -2,15 +2,19 @@ package client.io;
 
 import java.io.IOException;
 import java.io.OutputStream;
-
+import org.apache.log4j.Logger;
 import crc32.MyCrc;
+import tools.ByteObject;
 
 public abstract class MyDreamOutputStream extends OutputStream {
 
 	private byte[] chunkBuf;
 	private int count;
+	private int chunkByteNum;
+	private Logger logger = Logger.getLogger(MyDreamOutputStream.class);
 
 	protected MyDreamOutputStream(int chunkByteNum) {
+		this.chunkByteNum = chunkByteNum;
 		chunkBuf = new byte[chunkByteNum];
 		count = 0;
 	}
@@ -65,6 +69,9 @@ public abstract class MyDreamOutputStream extends OutputStream {
 
 	private void writeChecksumChunks(byte b[], int off, int len) throws IOException {
 		byte[] checksum = MyCrc.get4ByteCrc32(b, off, len);
+		logger.info("write chunk context is : " + new String(b) + " write chunk check context is : " + ByteObject.byteArrayToInt(checksum));
 		writeChunk(b, off, len, checksum, 0, checksum.length);
+		count = 0;
+		chunkBuf = new byte[chunkByteNum];
 	}
 }

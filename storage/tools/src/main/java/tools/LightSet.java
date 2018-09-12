@@ -136,7 +136,4 @@ public class LightSet<K, E extends K> implements XSet<K, E> {
 		final int c = 1 << exponent;
 		return c;
 	}
-	public static void main(String[] args) {
-		logger.info(computeCapacity(1));
-	}
 }
